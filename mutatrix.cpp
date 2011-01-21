@@ -27,7 +27,8 @@ void printSummary() {
          << "                           2bp MNPs relative to 3pb MNPs, etc. (default 0.01)" << endl
          << "    -p, --ploidy           ploidy of the population (default 1)" << endl
          << "    -n, --population-size  number of individuals in the population" << endl
-         << "    -P, --output-prefix    prefix output fasta files with this" << endl
+         << "    -P, --file-prefix      prefix output fasta files with this" << endl
+         << "    -S, --sample-prefix    prefix sample names (numbers by default) with this" << endl
          << endl
          << "Generates a simulated population with no linkage, but a zeta-distributed allele frequency spectrum." << endl
          << "Writes a set of files PREFIX_SEQUENCE_INDIVIDUAL_COPY.fa for each fasta sequence in the provided" << endl
@@ -101,6 +102,8 @@ int main (int argc, char** argv) {
     int ploidy = 1;
     int population_size = 1;
     string fastaFileName;
+    string file_prefix = "";
+    string sample_prefix = "";
 
     string command_line = argv[0];
     for (int i = 1; i < argc; ++i) {
@@ -125,12 +128,14 @@ int main (int argc, char** argv) {
             {"mnp-ratio", required_argument, 0, 'M'},
             {"ploidy", required_argument, 0, 'p'},
             {"population-size", required_argument, 0, 'n'},
+            {"file-prefix", required_argument, 0, 'P'},
+            {"sample-prefix", required_argument, 0, 'S'},
             {0, 0, 0, 0}
         };
         /* getopt_long stores the option index here. */
         int option_index = 0;
 
-        c = getopt_long (argc, argv, "hr:a:z:s:p:n:M:m:", long_options, &option_index);
+        c = getopt_long (argc, argv, "hr:a:z:s:p:n:M:m:P:S:", long_options, &option_index);
 
       /* Detect the end of the options. */
           if (c == -1)
@@ -196,6 +201,14 @@ int main (int argc, char** argv) {
                 exit(1);
             }
             break;
+
+          case 'P':
+            file_prefix = optarg;
+            break;
+
+          case 'S':
+            sample_prefix = optarg;
+            break;
  
           case 'n':
             if (!convert(optarg, population_size)) {
@@ -256,7 +269,7 @@ int main (int argc, char** argv) {
         << "##FORMAT=<ID=GT,Number=1,Type=String,Description=\"Genotype\">" << endl
         << "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT";
     for (int i = 0; i < population_size; ++i)
-        cout << "\t" << i;
+        cout << "\t" << sample_prefix << i + 1; // one-based sample names
     cout << endl;
 
     int copies = ploidy * population_size;
@@ -425,13 +438,24 @@ int main (int argc, char** argv) {
     // print sequences to files
     // named by sample number and sequence copy
     for (int i = 0; i < population_size; ++i) {
+        stringstream sname;
+        sname << sample_prefix << i + 1;
+        string samplename = sname.str();
         for (int j = 0; j < ploidy; ++j) {
             int l = (j * ploidy) + i;
-            stringstream num;
-            num << i << "__" << j << "__";
+            stringstream cname;
+            cname << j;
+            string chromname = cname.str();
             for (map<string, vector<string> >::iterator s = sequencesByRefseq.begin(); s != sequencesByRefseq.end(); ++s) {
-                string fullname = num.str() + s->first;
-                //writeFasta(cout, fullname, s->second.at(l));
+                string fullname = samplename + ":" + s->first + ":" + chromname;
+                string filename = file_prefix + fullname + ".fa";
+
+                //cerr << fullname << endl;
+                //cerr << filename << endl;
+                ofstream outputfile;
+                outputfile.open(filename.c_str());
+                writeFasta(outputfile, fullname, s->second.at(l));
+                outputfile.close();
             }
         }
     }
