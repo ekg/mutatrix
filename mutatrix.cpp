@@ -9,6 +9,51 @@
 #include <math.h>
 #include "convert.h"
 
+class SampleFastaFile {
+
+public:
+
+    ofstream fastafile;
+    long int pos;
+    string linebuffer;
+    string filename;
+    string seqname;
+    int linewidth;
+
+    void write(string sequence) {
+        linebuffer += sequence;
+        while (linebuffer.length() > linewidth) {
+            fastafile << linebuffer.substr(0, linewidth) << endl;
+            linebuffer = linebuffer.substr(linewidth);
+        }
+    }
+
+    //SampleFastaFile(void) { }
+
+    // TODO add filname and seqname to this
+    SampleFastaFile(string& m_filename, string& m_seqname, int m_linewidth = 80)
+        : filename(m_filename)
+        , seqname(m_seqname)
+        , pos(0)
+        , linewidth(m_linewidth)
+    {
+        fastafile.open(filename.c_str());
+        if (!fastafile.is_open()) {
+            cerr << "could not open " << filename << " for writing, exiting" << endl;
+            exit(1);
+        }
+        fastafile << ">" << seqname << endl;
+    }
+
+    ~SampleFastaFile(void) {
+        write(""); // flush
+        fastafile << linebuffer << endl;
+        fastafile.close();
+    }
+
+};
+
+
 void printSummary() {
     cerr 
          << endl
@@ -29,6 +74,7 @@ void printSummary() {
          << "    -n, --population-size  number of individuals in the population" << endl
          << "    -P, --file-prefix      prefix output fasta files with this" << endl
          << "    -S, --sample-prefix    prefix sample names (numbers by default) with this" << endl
+         << "    -g, --random-seed      provide the seed for pseudorandom generation (default, seconds since 1970)" << endl
          << endl
          << "Generates a simulated population with no linkage, but a zeta-distributed allele frequency spectrum." << endl
          << "Writes a set of files PREFIX_SEQUENCE_INDIVIDUAL_COPY.fa for each fasta sequence in the provided" << endl
@@ -101,6 +147,7 @@ int main (int argc, char** argv) {
     int indel_max = 1000;
     int ploidy = 1;
     int population_size = 1;
+    int seed = time(NULL);
     string fastaFileName;
     string file_prefix = "";
     string sample_prefix = "";
@@ -130,12 +177,13 @@ int main (int argc, char** argv) {
             {"population-size", required_argument, 0, 'n'},
             {"file-prefix", required_argument, 0, 'P'},
             {"sample-prefix", required_argument, 0, 'S'},
+            {"random-seed", required_argument, 0, 'g'},
             {0, 0, 0, 0}
         };
         /* getopt_long stores the option index here. */
         int option_index = 0;
 
-        c = getopt_long (argc, argv, "hr:a:z:s:p:n:M:m:P:S:", long_options, &option_index);
+        c = getopt_long (argc, argv, "hr:a:z:s:p:n:M:m:P:S:g:", long_options, &option_index);
 
       /* Detect the end of the options. */
           if (c == -1)
@@ -217,6 +265,13 @@ int main (int argc, char** argv) {
             }
             break;
 
+          case 'g':
+            if (!convert(optarg, seed)) {
+                cerr << "could not read -g, --random-seed" << endl;
+                exit(1);
+            }
+            break;
+
           case 'h':
             printSummary();
             exit(0);
@@ -243,7 +298,6 @@ int main (int argc, char** argv) {
         exit(1);
     }
 
-    int seed = time(NULL);
     init_genrand(seed); // seed mt with current time
 
     string seqname;
@@ -274,7 +328,29 @@ int main (int argc, char** argv) {
 
     int copies = ploidy * population_size;
 
-    map<string, vector<string> > sequencesByRefseq;
+    map<string, vector<SampleFastaFile*> > sequencesByRefseq;
+
+    for (FastaIndex::iterator s = fr.index->begin(); s != fr.index->end(); ++s) {
+
+        FastaIndexEntry& indexEntry = s->second;
+        seqname = indexEntry.name;
+
+        vector<SampleFastaFile*>& sequences = sequencesByRefseq[seqname];
+        for (int i = 0; i < population_size; ++i) {
+            stringstream sname;
+            sname << sample_prefix << i + 1;
+            string samplename = sname.str();
+            for (int j = 0; j < ploidy; ++j) {
+                stringstream cname;
+                cname << j;
+                string chromname = cname.str();
+                string fullname = samplename + ":" + seqname + ":" + chromname;
+                string filename = file_prefix + fullname + ".fa";
+                //sequences.push_back(SampleFastaFile(filename, seqname));
+                sequences.push_back(new SampleFastaFile(filename, seqname));
+            }
+        }
+    }
 
     for (FastaIndex::iterator s = fr.index->begin(); s != fr.index->end(); ++s) {
 
@@ -282,8 +358,8 @@ int main (int argc, char** argv) {
         seqname = indexEntry.name;
         sequence = fr.getSequence(s->first);
 
-        vector<string>& sequences = sequencesByRefseq[seqname];
-        sequences.resize(copies);
+        vector<SampleFastaFile*>& sequences = sequencesByRefseq[seqname];
+        //sequences.resize(copies);
 
         vector<string> genotypes;
         genotypes.resize(population_size);
@@ -291,28 +367,30 @@ int main (int argc, char** argv) {
         long int pos = 0;
         string ref = "";
 
-        while (pos < sequence.size()) {
+        while (pos < sequence.size() - 1) {
 
             pos += ref.size(); // step by the size of the last event
             ref = sequence.substr(pos, 1); // by default, ref is just the current base
 
+            string alt;
+
+            int len = 1;
+
+            bool insertion = false;
+            bool deletion = false;
+            bool mnp = false;
+            bool snp = false;
+
             // flip a coin
-            double mut = genrand_real1();
             // scale it into the amount of sequence at this site
-            mut /= copies;
+            double mut = genrand_real1() / copies;
+
             // have we drawn a mutation event?
             if (mut < mutation_rate) {
 
                 //cerr << seqname << "\t" << pos << "\t";
+                snp = (genrand_real1() > indel_snp_ratio);
 
-                string alt;
-
-                int len = 1;
-
-                bool insertion = false;
-                bool deletion = false;
-                bool mnp = false;
-                bool snp = (genrand_real1() > indel_snp_ratio);
                 // make an alternate allele
                 if (snp) {
 
@@ -355,8 +433,18 @@ int main (int argc, char** argv) {
                                 alt += string(1, bases.at(genrand_int32() % 4));
                             }
                         }
+                    } else {
+                        // fall through
                     }
                 }
+            }
+
+            // no mutation generated
+            if (!mut || !(snp || mnp || insertion || deletion)) {
+                for (int i = 0; i < copies; ++i) {
+                    sequences.at(i)->write(ref);
+                }
+            } else {
 
                 string genotype;
 
@@ -388,10 +476,10 @@ int main (int argc, char** argv) {
                         // when we are outside of the last deletion
                         if (alts.at(l)) {
                             genotype += "1|";
-                            sequences.at(l) += alt;
+                            sequences.at(l)->write(alt);
                         } else {
                             genotype += "0|";
-                            sequences.at(l) += ref;
+                            sequences.at(l)->write(ref);
                         }
                     }
                     genotype = genotype.substr(0, genotype.size() - 1);
@@ -426,38 +514,16 @@ int main (int argc, char** argv) {
                 cout << endl;
 
             }
-            // no mutation
-            else {
-                for (int i = 0; i < copies; ++i) {
-                    sequences.at(i) += ref;
-                }
-            }
         }
     }
 
-    // print sequences to files
-    // named by sample number and sequence copy
-    for (int i = 0; i < population_size; ++i) {
-        stringstream sname;
-        sname << sample_prefix << i + 1;
-        string samplename = sname.str();
-        for (int j = 0; j < ploidy; ++j) {
-            int l = (j * ploidy) + i;
-            stringstream cname;
-            cname << j;
-            string chromname = cname.str();
-            for (map<string, vector<string> >::iterator s = sequencesByRefseq.begin(); s != sequencesByRefseq.end(); ++s) {
-                string fullname = samplename + ":" + s->first + ":" + chromname;
-                string filename = file_prefix + fullname + ".fa";
-
-                //cerr << fullname << endl;
-                //cerr << filename << endl;
-                ofstream outputfile;
-                outputfile.open(filename.c_str());
-                writeFasta(outputfile, fullname, s->second.at(l));
-                outputfile.close();
-            }
+    // close, clean up files
+    for (map<string, vector<SampleFastaFile*> >::iterator s = sequencesByRefseq.begin(); s != sequencesByRefseq.end(); ++s) {
+        vector<SampleFastaFile*>& files = s->second;
+        for (vector<SampleFastaFile*>::iterator f = files.begin(); f != files.end(); ++f) {
+            delete *f;
         }
+        files.clear();
     }
 
     return 0;
