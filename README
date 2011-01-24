@@ -9,7 +9,7 @@ current directory or a user-defined path (--file-prefix).
 
 Example usage:
 
-    % ./mutatrix -S sample -P test/ -p 2 a -n 10
+    % ./mutatrix -S sample -P test/ -p 2 -n 10 reference.fasta
 
 This command writes VCF to stdout and writes mutated references to test/, with
 this format:
