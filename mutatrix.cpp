@@ -8,6 +8,7 @@
 #include "mt19937ar.h"
 #include <math.h>
 #include "convert.h"
+#include <iomanip>
 
 class SampleFastaFile {
 
@@ -147,6 +148,7 @@ int main (int argc, char** argv) {
     int indel_max = 1000;
     int ploidy = 1;
     int population_size = 1;
+    int sample_id_max_digits = 1;
     int seed = time(NULL);
     string fastaFileName;
     string file_prefix = "";
@@ -263,6 +265,7 @@ int main (int argc, char** argv) {
                 cerr << "could not read -n, --population-size" << endl;
                 exit(1);
             }
+            sample_id_max_digits = strlen(optarg);
             break;
 
           case 'g':
@@ -323,7 +326,7 @@ int main (int argc, char** argv) {
         << "##FORMAT=<ID=GT,Number=1,Type=String,Description=\"Genotype\">" << endl
         << "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT";
     for (int i = 0; i < population_size; ++i)
-        cout << "\t" << sample_prefix << i + 1; // one-based sample names
+        cout << "\t" << sample_prefix << setfill('0') << setw(sample_id_max_digits) << i + 1; // one-based sample names
     cout << endl;
 
     int copies = ploidy * population_size;
@@ -338,7 +341,7 @@ int main (int argc, char** argv) {
         vector<SampleFastaFile*>& sequences = sequencesByRefseq[seqname];
         for (int i = 0; i < population_size; ++i) {
             stringstream sname;
-            sname << sample_prefix << i + 1;
+            sname << sample_prefix << setfill('0') << setw(sample_id_max_digits) << i + 1;
             string samplename = sname.str();
             for (int j = 0; j < ploidy; ++j) {
                 stringstream cname;
@@ -372,7 +375,7 @@ int main (int argc, char** argv) {
             pos += ref.size(); // step by the size of the last event
             ref = sequence.substr(pos, 1); // by default, ref is just the current base
 
-            string alt;
+            string alt = ref;
 
             int len = 1;
 
@@ -429,7 +432,7 @@ int main (int argc, char** argv) {
                             insertion = true;
                             // TODO ... vntr?
                             // insert some random de novo bases
-                            while (alt.length() < len) {
+                            while (alt.length() < len + 1) {
                                 alt += string(1, bases.at(genrand_int32() % 4));
                             }
                         }
@@ -490,7 +493,7 @@ int main (int argc, char** argv) {
                 // and write a line of VCF output
                 // #CHROM  POS     ID      REF     ALT     QUAL    FILTER  INFO    FORMAT
                 cout << seqname
-                     << "\t" << pos
+                     << "\t" << pos + 1
                      << "\t" << "."
                      << "\t" << ref
                      << "\t" << alt
