@@ -6,9 +6,31 @@
 #include <stdlib.h>
 #include <time.h>
 #include "mt19937ar.h"
-#include <math.h>
+#include <cmath>
+#include <assert.h>
 #include "convert.h"
 #include <iomanip>
+#include "Repeats.h"
+
+class Allele {
+public:
+    friend bool operator==(const Allele&, const Allele&);
+    friend ostream& operator<<(ostream&, const Allele&);
+    string ref;
+    string alt;
+    string type;
+    Allele(const string& r, const string& a, const string& t = "")
+        : ref(r), alt(a), type(t) { }
+};
+
+bool operator==(const Allele& a, const Allele& b) {
+    return a.ref == b.ref && a.alt == b.alt;
+}
+
+ostream& operator<<(ostream& out, const Allele& allele) {
+    out << allele.ref << "/" << allele.alt;
+    return out;
+}
 
 class SampleFastaFile {
 
@@ -54,6 +76,59 @@ public:
 
 };
 
+/*
+map<string, int> repeat_counts(
+        unsigned int position,
+        string& sequence,
+        int maxsize) {
+    map<string, int> counts;
+    for (int i = 1; i <= maxsize; ++i) {
+        // subseq here i bases
+        string seq = sequence.substr(position, i);
+        // go left.
+        int j = position - i;
+        int left = 0;
+        while (j - i >= 0 && seq == sequence.substr(j, i)) {
+            j -= i;
+            ++left;
+        }
+        // go right.
+        j = position + i;
+        int right = 0;
+        while (j + i < sequence.size() && seq == sequence.substr(j, i)) {
+            j += i;
+            ++right;
+        }
+        // if we went left and right a non-zero number of times, 
+        if (right > 0 || left > 0) {
+            counts[seq] = right + left + 1;
+        }
+    }
+
+    // filter out redundant repeat information
+    if (counts.size() > 1) {
+        map<string, int> filteredcounts;
+        map<string, int>::iterator c = counts.begin();
+        string prev = c->first;
+        filteredcounts[prev] = c->second;  // shortest sequence
+        ++c;
+        for (; c != counts.end(); ++c) {
+            int i = 0;
+            string seq = c->first;
+            while (i + prev.length() <= seq.length() && seq.substr(i, prev.length()) == prev) {
+                i += prev.length();
+            }
+            if (i < seq.length()) {
+                filteredcounts[seq] = c->second;
+                prev = seq;
+            }
+        }
+        return filteredcounts;
+    } else {
+        return counts;
+    }
+}
+*/
 
 void printSummary() {
     cerr 
@@ -63,27 +138,38 @@ void printSummary() {
          << "usage: mutatrix [options] reference.fa >mutants.vcf" << endl
          << endl
          << "options:" << endl 
-         << "    -r, --rate             the relative rate of mutation per bp per chrom (default 0.001)" << endl
-         << "    -a, --afs-alpha        the allele frequency spectrum distribution alpha parameter (zeta(n), default 1.7)" << endl
-         << "    -z, --indel-alpha      the alpha parameter of the indel length frequency distribution (zeta(l), default 1.7)" << endl
-         << "                           indels of length N have probability zeta(N)" << endl
-         << "    -s, --indel-snp-ratio  ratio between 1bp indels and snps (default 0.2)" << endl
-         << "    -M, --indel-max        maximum indel length (default 1000)" << endl
-         << "    -m, --mnp-ratio        the geometric scaling probability for 2bp multi-nucleotide-polymorphisms relative to SNPs," << endl
-         << "                           2bp MNPs relative to 3pb MNPs, etc. (default 0.01)" << endl
-         << "    -p, --ploidy           ploidy of the population (default 1)" << endl
-         << "    -n, --population-size  number of individuals in the population" << endl
-         << "    -P, --file-prefix      prefix output fasta files with this" << endl
-         << "    -S, --sample-prefix    prefix sample names (numbers by default) with this" << endl
-         << "    -g, --random-seed      provide the seed for pseudorandom generation (default, seconds since 1970)" << endl
+         << "    -s, --snp-rate          the relative rate of point mutation per bp per chrom (default 0.00001)" << endl
+         << "    -M, --mnp-ratio         the geometric scaling probability for 2bp multi-nucleotide-polymorphisms relative to SNPs," << endl
+         << "                            2bp MNPs relative to 3pb MNPs, etc. (default 0.01)" << endl
+         << "    -i, --indel-rate        the rate of non-repeat indel mutations per bp per chrom (default 0.000001)" << endl
+         << "    -X, --indel-max         maximum indel length (default 1000)" << endl
+         << "    -z, --indel-alpha       the alpha parameter of the indel length frequency distribution (zeta(l), default 1.1)" << endl
+         << "                            indels of length N have probability zeta(N)" << endl
+         << "    -q, --repeat-max-size   maximum size of exect repeat unit in the genome to detect (default 20)" << endl
+         << "    -m, --microsat-rate     the rate of microsatellite mutation at microsatellite sites (default 0.000005)" << endl
+         << "    -t, --microsat-afs-alpha    alpha parameter for microsatellite allele count (default 1.7)" << endl
+         << "    -j, --microsat-len-alpha    alpha parameter for microsatellite mutation length (default 1.7)" << endl
+         << "    -m, --microsat-min-len  the minimum number of bases in a repeat to consider it a microsatellite (default 1)" << endl
+         << "    -a, --afs-alpha         the allele frequency spectrum distribution scaling parameter (1/i * alpha, default 1.0)" << endl
+         << "    -p, --ploidy            ploidy of the population (default 1)" << endl
+         << "    -n, --population-size   number of individuals in the population" << endl
+         << "    -P, --file-prefix       prefix output fasta files with this" << endl
+         << "    -S, --sample-prefix     prefix sample names (numbers by default) with this" << endl
+         << "    -g, --random-seed       provide the seed for pseudorandom generation (default, seconds since 1970)" << endl
+         << "    -d, --dry-run           don't write any fasta output files, just print VCF output" << endl
          << endl
-         << "Generates a simulated population with no linkage, but a zeta-distributed allele frequency spectrum." << endl
-         << "Writes a set of files PREFIX_SEQUENCE_INDIVIDUAL_COPY.fa for each fasta sequence in the provided" << endl
-         << "reference, sample, and simulated copy of the genome.  A VCF file is generated on stdout describing" << endl
-         << "the reference-relative variation of each sample." << endl
+         << "Generates a simulated population with no linkage, but allele frequency spectrum drawn from 1/n," << endl
+         << "where n is the minor allele frequency." << endl
          << endl
-         << "The allele frequency spectrum and indel length distribution are zeta-distributed.  The MNP length" << endl
-         << "frequency spectrum is geometrically distributed." << endl
+         << "Writes a set of files of the form prefix_sequence_individual_copy.fa for each fasta sequence in" << endl
+         << "the provided reference, sample, and simulated copy of the genome.  A VCF file is generated on stdout"<< endl
+         << "describing the reference-relative variation of each sample." << endl
+         << endl
+         << "The indel length distribution is zeta-distributed.  The MNP length frequency spectrum is" << endl
+         << "geometrically distributed." << endl
+         << endl
+         << "At runtime the genome is analyzed for repeats up to a certain number of bp (default 20)." << endl
+         << "If repeats are found, mutations are generated from them using the microsatellite paramaters." << endl
          << endl
          << "author: Erik Garrison <erik.garrison@bc.edu>" << endl
          << endl;
@@ -114,8 +200,22 @@ string dateStr(void) {
 
 }
 
+long double microsatelliteInsProb(int count) {
+    return min(1.0, 3.1 * pow(10, -6) * exp(0.2 * count));
+}
+
+long double microsatelliteDelProb(int count) {
+    return min(1.0, 4.0 * pow(10, -7) * exp(0.302 * count));
+}
+
 int expovariate(double lambda) {
     return -log(genrand_real1()) / lambda;
+}
+
+// generates a random allele frequency in 1/i scaled by alpha
+// bounded by the number of copies at the locus
+int random_allele_frequency(int copies, double alpha) {
+    return min((int) floor(1 / genrand_real1() * alpha), copies);
 }
 
 double zetarandom(double alpha) {
@@ -139,12 +239,16 @@ double zetarandom(double alpha) {
 
 int main (int argc, char** argv) {
 
-    float mutation_rate = 0.001;
-    float het_rate = 0.5;
-    float afs_alpha = 1.7;
-    float indel_alpha = 1.7;
-    float indel_snp_ratio = 0.2;
-    float mnp_ratio = 0.01;
+    double snp_mutation_rate = 0.000025;
+    double indel_mutation_rate = 0.000005;
+    double het_rate = 0.5;
+    double afs_alpha = 1;
+    double indel_alpha = 3;
+    double microsatellite_afs_alpha = 1;
+    double microsatellite_len_alpha = 1.7;
+    double microsatellite_mutation_rate = 0.000005;
+    double mnp_ratio = 0.01;
+    int microsatellite_min_length = 1;
     int indel_max = 1000;
     int ploidy = 1;
     int population_size = 1;
@@ -153,6 +257,8 @@ int main (int argc, char** argv) {
     string fastaFileName;
     string file_prefix = "";
     string sample_prefix = "";
+    bool dry_run = false;
+    int repeat_size_max = 20;
 
     string command_line = argv[0];
     for (int i = 1; i < argc; ++i) {
@@ -169,23 +275,29 @@ int main (int argc, char** argv) {
             //{"verbose", no_argument,       &verbose_flag, 1},
             //{"brief",   no_argument,       &verbose_flag, 0},
             {"help", no_argument, 0, 'h'},
-            {"rate",  required_argument, 0, 'r'},
-            {"afs-alpha",  required_argument, 0, 'a'},
-            {"indel-alpha", required_argument, 0, 'z'},
-            {"indel-snp-ratio", required_argument, 0, 's'},
-            {"indel-max", required_argument, 0, 'M'},
+            {"snp-rate",  required_argument, 0, 's'},
             {"mnp-ratio", required_argument, 0, 'M'},
+            {"indel-rate",  required_argument, 0, 'i'},
+            {"indel-alpha", required_argument, 0, 'z'},
+            {"indel-max", required_argument, 0, 'X'},
+            {"repeat-size-max", required_argument, 0, 'q'},
+            {"microsat-rate",  required_argument, 0, 'm'},
+            {"microsat-afs-alpha", required_argument, 0, 't'},
+            {"microsat-len-alpha", required_argument, 0, 'j'},
+            {"microsat-min-len", required_argument, 0, 'l'},
+            {"afs-alpha",  required_argument, 0, 'a'},
             {"ploidy", required_argument, 0, 'p'},
             {"population-size", required_argument, 0, 'n'},
             {"file-prefix", required_argument, 0, 'P'},
             {"sample-prefix", required_argument, 0, 'S'},
             {"random-seed", required_argument, 0, 'g'},
+            {"dry-run", no_argument, 0, 'd'},
             {0, 0, 0, 0}
         };
         /* getopt_long stores the option index here. */
         int option_index = 0;
 
-        c = getopt_long (argc, argv, "hr:a:z:s:p:n:M:m:P:S:g:", long_options, &option_index);
+        c = getopt_long (argc, argv, "hda:z:s:i:q:p:n:M:X:t:m:P:S:g:l:j:", long_options, &option_index);
 
       /* Detect the end of the options. */
           if (c == -1)
@@ -203,9 +315,27 @@ int main (int argc, char** argv) {
             printf ("\n");
             break;
 
-          case 'r':
-            if (!convert(optarg, mutation_rate)) {
-                cerr << "could not read -r, --rate" << endl;
+          case 'd':
+            dry_run = true;
+            break;
+
+          case 'q':
+            if (!convert(optarg, repeat_size_max)) {
+                cerr << "could not read -q, --repeat-size-max" << endl;
+                exit(1);
+            }
+            break;
+
+          case 's':
+            if (!convert(optarg, snp_mutation_rate)) {
+                cerr << "could not read -s, --snp-rate" << endl;
+                exit(1);
+            }
+            break;
+
+          case 'i':
+            if (!convert(optarg, indel_mutation_rate)) {
+                cerr << "could not read -i, --indel-rate" << endl;
                 exit(1);
             }
             break;
@@ -224,23 +354,44 @@ int main (int argc, char** argv) {
             }
             break;
 
-          case 's':
-            if (!convert(optarg, indel_snp_ratio)) {
-                cerr << "could not read -s, --indel-snp-ratio" << endl;
-                exit(1);
-            }
-            break;
-
-          case 'M':
+          case 'X':
             if (!convert(optarg, indel_max)) {
                 cerr << "could not read -M, --indel-max" << endl;
                 exit(1);
             }
             break;
  
-          case 'm':
+          case 'M':
             if (!convert(optarg, mnp_ratio)) {
                 cerr << "could not read -m, --mnp-ratio" << endl;
+                exit(1);
+            }
+            break;
+ 
+          case 'm':
+            if (!convert(optarg, microsatellite_mutation_rate)) {
+                cerr << "could not read -m, --microsat-rate" << endl;
+                exit(1);
+            }
+            break;
+ 
+          case 't':
+            if (!convert(optarg, microsatellite_afs_alpha)) {
+                cerr << "could not read -m, --microsatellite-afs-alpha" << endl;
+                exit(1);
+            }
+            break;
+ 
+          case 'j':
+            if (!convert(optarg, microsatellite_len_alpha)) {
+                cerr << "could not read -m, --microsatellite-len-alpha" << endl;
+                exit(1);
+            }
+            break;
+ 
+          case 'l':
+            if (!convert(optarg, microsatellite_min_length)) {
+                cerr << "could not read -l, --microsat-min-len" << endl;
                 exit(1);
             }
             break;
@@ -333,24 +484,26 @@ int main (int argc, char** argv) {
 
     map<string, vector<SampleFastaFile*> > sequencesByRefseq;
 
-    for (FastaIndex::iterator s = fr.index->begin(); s != fr.index->end(); ++s) {
+    if (!dry_run) {
+        for (FastaIndex::iterator s = fr.index->begin(); s != fr.index->end(); ++s) {
 
-        FastaIndexEntry& indexEntry = s->second;
-        seqname = indexEntry.name;
+            FastaIndexEntry& indexEntry = s->second;
+            seqname = indexEntry.name;
 
-        vector<SampleFastaFile*>& sequences = sequencesByRefseq[seqname];
-        for (int i = 0; i < population_size; ++i) {
-            stringstream sname;
-            sname << sample_prefix << setfill('0') << setw(sample_id_max_digits) << i + 1;
-            string samplename = sname.str();
-            for (int j = 0; j < ploidy; ++j) {
-                stringstream cname;
-                cname << j;
-                string chromname = cname.str();
-                string fullname = samplename + ":" + seqname + ":" + chromname;
-                string filename = file_prefix + fullname + ".fa";
-                //sequences.push_back(SampleFastaFile(filename, seqname));
-                sequences.push_back(new SampleFastaFile(filename, seqname));
+            vector<SampleFastaFile*>& sequences = sequencesByRefseq[seqname];
+            for (int i = 0; i < population_size; ++i) {
+                stringstream sname;
+                sname << sample_prefix << setfill('0') << setw(sample_id_max_digits) << i + 1;
+                string samplename = sname.str();
+                for (int j = 0; j < ploidy; ++j) {
+                    stringstream cname;
+                    cname << j;
+                    string chromname = cname.str();
+                    string fullname = samplename + ":" + seqname + ":" + chromname;
+                    string filename = file_prefix + fullname + ".fa";
+                    //sequences.push_back(SampleFastaFile(filename, seqname));
+                    sequences.push_back(new SampleFastaFile(filename, seqname));
+                }
             }
         }
     }
@@ -363,159 +516,281 @@ int main (int argc, char** argv) {
 
         vector<SampleFastaFile*>& sequences = sequencesByRefseq[seqname];
         //sequences.resize(copies);
-
-        vector<string> genotypes;
-        genotypes.resize(population_size);
-
+        
         long int pos = 0;
-        string ref = "";
-
+        long int microsatellite_end_pos = 0;
         while (pos < sequence.size() - 1) {
 
-            pos += ref.size(); // step by the size of the last event
-            ref = sequence.substr(pos, 1); // by default, ref is just the current base
+            string ref = sequence.substr(pos, 1); // by default, ref is just the current base
 
-            string alt = ref;
+            vector<Allele> alleles;
+
+            // establish if we are in a repeat
+            // and what motif is being repeated, how many times
 
             int len = 1;
 
-            bool insertion = false;
-            bool deletion = false;
-            bool mnp = false;
-            bool snp = false;
+            // get reference repeats
+            // if we have a repeat, adjust the mutation rate
+            // using length and direction-dependent
+            // formula from "Likelihood-Based Estimation of Microsatellite Mutation Rates"
+            // http://www.genetics.org/cgi/content/full/164/2/781#T1
 
-            // flip a coin
-            // scale it into the amount of sequence at this site
-            double mut = genrand_real1() / copies;
+            if (pos > microsatellite_end_pos) {
 
-            // have we drawn a mutation event?
-            if (mut < mutation_rate) {
+                map<string, int> repeats = repeatCounts(pos, sequence, repeat_size_max);
+                if (repeats.size() > 0) {
 
-                //cerr << seqname << "\t" << pos << "\t";
-                snp = (genrand_real1() > indel_snp_ratio);
-
-                // make an alternate allele
-                if (snp) {
-
-                    alt = ref;
-                    while (alt == ref) {
-                        alt = string(1, bases.at(genrand_int32() % 4));
+                    string seq;
+                    int repeat_count = 0;
+                    // get the "biggest" repeat, the most likely ms allele at this site
+                    for (map<string, int>::iterator r = repeats.begin(); r != repeats.end(); ++r) {
+                        if (repeat_count < r->second) {
+                            repeat_count = r->second;
+                            seq = r->first;
+                        }
                     }
 
-                    mnp = (genrand_real1() < mnp_ratio);
-                    if (mnp) {
-                        snp = false;
-                        int i = 1;
-                        do {
-                            ref += sequence.substr(pos + i, 1);
-                            alt += sequence.substr(pos + i, 1);
-                            ++i;
-                            while (alt.at(alt.size() - 1) == ref.at(ref.size() - 1)) {
-                                alt.at(alt.size() - 1) = bases.at(genrand_int32() % 4);
-                            }
-                        } while (genrand_real1() < mnp_ratio);
-                        len = alt.size();
-                    }
-                // indel case
-                } else {
-                    // how many bp?
-                    len = (int) floor(zetarandom(indel_alpha));
-                    // guard against out-of-sequence indels
-                    if (pos + len < sequence.size() && len <= indel_max) {
-                        if (genrand_int32() % 2 == 0) {
-                        // deletion
-                            deletion = true;
-                            ref = sequence.substr(pos, 1 + len);
-                            alt = sequence.substr(pos, 1);
+                    int microsatellite_length = repeat_count * seq.size();
+
+                    // record end of microsatellite so we don't generate more mutations until we pass it
+                    microsatellite_end_pos = pos + microsatellite_length;
+
+                    if (microsatellite_length > microsatellite_min_length
+                            && genrand_real1() / copies 
+                                < microsatellite_mutation_rate * repeat_count) {
+
+                        // establish the relative rate of ins and del events
+                        /*
+                        long double repeatMutationDelProbability = microsatelliteDelProb(repeat_count);
+                        long double repeatMutationInsProbability = microsatelliteInsProb(repeat_count);
+                        long double indel_balance = 1;
+                        if (repeatMutationInsProbability > repeatMutationDelProbability) {
+                            indel_balance = repeatMutationInsProbability / repeatMutationDelProbability;
                         } else {
-                        // insertion?
-                            insertion = true;
-                            // TODO ... vntr?
-                            // insert some random de novo bases
-                            while (alt.length() < len + 1) {
-                                alt += string(1, bases.at(genrand_int32() % 4));
+                            indel_balance = 1 - (repeatMutationInsProbability / repeatMutationDelProbability);
+                        }
+                        */
+                        double indel_balance = 0.5;
+
+                        // how many alleles at the site?
+
+                        //int numalleles = min((int) floor(zetarandom(microsatellite_afs_alpha)), (int) ((double) repeat_count * indel_balance));
+                        int numalleles = random_allele_frequency(repeat_count, microsatellite_afs_alpha);
+                        //cout << "repeat_count: " << repeat_count << " numalleles: " << numalleles << endl;
+
+                        map<int, bool> allele_lengths;
+                        // lengths of the alleles
+                        while (allele_lengths.size() < numalleles) {
+                            int allele_length;
+                            // TODO adjust length so that shorter events are more likely...
+                            if (genrand_real1() > indel_balance) {
+                                allele_length = -1 * min((int) floor(zetarandom(microsatellite_len_alpha)), repeat_count);
+                            } else {
+                                allele_length = min((int) floor(zetarandom(microsatellite_len_alpha)), repeat_count);
+                            }
+                            //cout << allele_length << endl;
+                            map<int, bool>::iterator f = allele_lengths.find(allele_length);
+                            if (f == allele_lengths.end()) {
+                                allele_lengths[allele_length] = true;
                             }
                         }
-                    } else {
-                        // fall through
+
+                        // generate alleles
+                        for (map<int, bool>::iterator f = allele_lengths.begin();
+                                f != allele_lengths.end(); ++f) {
+
+                            int allele_length = f->first;
+                            int c = abs(f->first);
+                            string alt = seq;
+
+                            for (int i = 1; i < c; ++i)
+                                alt += seq;
+
+                            if (allele_length > 0) {
+                                alleles.push_back(Allele(ref, ref + alt, "MICROSAT"));
+                            } else {
+                                alleles.push_back(Allele(ref + alt, ref, "MICROSAT"));
+                            }
+                        }
+                        //cout << "alleles.size() == " << alleles.size() << endl;
                     }
                 }
             }
 
-            // no mutation generated
-            if (!mut || !(snp || mnp || insertion || deletion)) {
-                for (int i = 0; i < copies; ++i) {
-                    sequences.at(i)->write(ref);
+            // snp case
+            if (genrand_real1() / copies < snp_mutation_rate) {
+
+                // make an alternate allele
+                string alt = ref;
+                while (alt == ref) {
+                    alt = string(1, bases.at(genrand_int32() % 4));
                 }
+
+                if (genrand_real1() < mnp_ratio) {
+                    int i = 1;
+                    do {
+                        ref += sequence.substr(pos + i, 1);
+                        alt += sequence.substr(pos + i, 1);
+                        ++i;
+                        while (alt.at(alt.size() - 1) == ref.at(ref.size() - 1)) {
+                            alt.at(alt.size() - 1) = bases.at(genrand_int32() % 4);
+                        }
+                    } while (genrand_real1() < mnp_ratio);
+                    len = alt.size();
+                }
+                alleles.push_back(Allele(ref, alt));
+            }
+
+            // indel case
+            if (genrand_real1() / copies < indel_mutation_rate) {
+                // how many bp?
+                len = (int) floor(zetarandom(indel_alpha));
+                // guard against out-of-sequence indels
+                if (pos + len < sequence.size() && len <= indel_max) {
+                    if (genrand_int32() % 2 == 0) {
+                    // deletion
+                        alleles.push_back(Allele(sequence.substr(pos, 1 + len), sequence.substr(pos, 1)));
+                    } else {
+                        string alt;
+                    // insertion?
+                        // insert some random de novo bases
+                        while (alt.length() < len + 1) {
+                            alt += string(1, bases.at(genrand_int32() % 4));
+                        }
+                        alleles.push_back(Allele(ref, alt));
+                    }
+                } else {
+                    // fall through
+                }
+            }
+
+            // no mutation generated
+            if (alleles.empty()) {
+                for (int i = 0; i < copies; ++i) {
+                    if (!dry_run) {
+                        sequences.at(i)->write(ref);
+                    }
+                }
+                pos += ref.size();
             } else {
+
+                // TODO randomly distribute all the alleles throughout the population
+                // generate allele frequencies for each
+                // fun times...
 
                 string genotype;
 
                 vector<bool> alts;
+                random_shuffle(alleles.begin(), alleles.end());
+
+                vector<Allele> population_alleles;
+                vector<Allele> present_alleles; // filtered for AFS > 0 in the sample
                 
                 // AFS simulation
-                int allele_freq = min((double) copies, zetarandom(afs_alpha));
-
-                {
-                    int i = 0;
-                    for (; i < allele_freq; ++i) {
-                        alts.push_back(true);
-                    }
-
-                    for (; i < copies; ++i) {
-                        alts.push_back(false);
-                    }
-                }
-
-                // shuffle the minor alleles around the population
-                random_shuffle(alts.begin(), alts.end());
-
-                // and encode the genotypes for each individual
-                for (int j = 0; j < population_size; ++j) {
-                    string genotype;
-                    for (int i = 0; i < ploidy; ++i) {
-                        int l = (j * ploidy) + i;
-                        // for simplicity, only allow reference-relative events
-                        // when we are outside of the last deletion
-                        if (alts.at(l)) {
-                            genotype += "1|";
-                            sequences.at(l)->write(alt);
-                        } else {
-                            genotype += "0|";
-                            sequences.at(l)->write(ref);
+                int remaining_copies = copies;
+                while (remaining_copies > 0 && !alleles.empty()) {
+                    Allele allele = alleles.back();
+                    alleles.pop_back();
+                    int allele_freq = random_allele_frequency(remaining_copies, afs_alpha);
+                    if (allele_freq > 0) {
+                        present_alleles.push_back(allele);
+                        for (int i = 0; i < allele_freq; ++i) {
+                            population_alleles.push_back(allele);
                         }
+                        remaining_copies -= allele_freq;
                     }
-                    genotype = genotype.substr(0, genotype.size() - 1);
-                    // and record it
-                    genotypes.at(j) = genotype;
                 }
 
-                // and write a line of VCF output
-                // #CHROM  POS     ID      REF     ALT     QUAL    FILTER  INFO    FORMAT
-                cout << seqname
-                     << "\t" << pos + 1
-                     << "\t" << "."
-                     << "\t" << ref
-                     << "\t" << alt
-                     << "\t" << 99
-                     << "\t" << "."
-                     << "\t" << "NS=" << population_size << ";AC=" << allele_freq;
-                if (snp) {
-                    cout << ";SNP";
-                } else if (mnp) {
-                    cout << ";MNP=" << len;
-                } else if (insertion) {
-                    cout << ";INS=" << len;
-                } else if (deletion) {
-                    cout << ";DEL=" << len;
+                // reference alleles take up the rest
+                Allele reference_allele = Allele(ref, ref);
+                for (int i = 0; i < remaining_copies; ++i) {
+                    population_alleles.push_back(reference_allele);
                 }
-                cout << "\t" << "GT";
+                //present_alleles.push_back(reference_allele);
 
-                for (vector<string>::iterator g = genotypes.begin(); g != genotypes.end(); ++g) {
-                    cout << "\t" << *g;
+                assert(population_alleles.size() == copies);
+
+                // shuffle the alleles around the population
+                random_shuffle(population_alleles.begin(), population_alleles.end());
+
+                for (vector<Allele>::iterator a = present_alleles.begin(); a != present_alleles.end(); ++a) {
+
+                    Allele& allele = *a;
+
+                    vector<string> genotypes;
+                    genotypes.resize(population_size);
+
+                    int allele_freq = 0;
+                    // and encode the genotypes for each individual
+                    for (int j = 0; j < population_size; ++j) {
+                        string genotype;
+                        for (int i = 0; i < ploidy; ++i) {
+                            int l = (j * ploidy) + i;
+                            // for simplicity, only allow reference-relative events
+                            // when we are outside of the last deletion
+                            if (population_alleles.at(l) == allele) {
+                                genotype += "1|";
+                                if (!dry_run) {
+                                    sequences.at(l)->write(allele.alt);
+                                }
+                                ++allele_freq;
+                            } else if (population_alleles.at(l) == reference_allele) {
+                                genotype += "0|";
+                                if (!dry_run) {
+                                    sequences.at(l)->write(allele.ref);
+                                }
+                            } else {
+                                genotype += ".|";
+                            }
+                        }
+                        genotype = genotype.substr(0, genotype.size() - 1);
+                        // and record it
+                        genotypes.at(j) = genotype;
+                    }
+
+                    // and write lines of VCF output
+                    // #CHROM  POS     ID      REF     ALT     QUAL    FILTER  INFO    FORMAT
+                    cout << seqname
+                         << "\t" << pos + 1
+                         << "\t" << "."
+                         << "\t" << allele.ref
+                         << "\t" << allele.alt
+                         << "\t" << 99
+                         << "\t" << "."
+                         << "\t" << "NS=" << population_size << ";AC=" << allele_freq;
+
+                    int delta = allele.alt.size() - allele.ref.size();
+                    if (delta == 0) {
+                        if (allele.ref.size() == 1) {
+                            cout << ";SNP";
+                        } else {
+                            cout << ";MNP=" << len;
+                        }
+                    } else if (delta > 0) {
+                        cout << ";INS=" << abs(delta);
+                    } else {
+                        cout << ";DEL=" << abs(delta);
+                    }
+                    if (!allele.type.empty()) {
+                        cout << ";" << allele.type;
+                    }
+                    cout << "\t" << "GT";
+
+                    for (vector<string>::iterator g = genotypes.begin(); g != genotypes.end(); ++g) {
+                        cout << "\t" << *g;
+                    }
+                    cout << endl;
                 }
-                cout << endl;
 
+                int largest_ref = 1; // enforce one pos
+                for (vector<Allele>::iterator a = present_alleles.begin(); a != present_alleles.end(); ++a) {
+                    if (a->ref.size() > largest_ref) {
+                        largest_ref = a->ref.size();
+                    }
+                }
+
+                pos += largest_ref; // step by the size of the last event
             }
         }
     }

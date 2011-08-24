@@ -5,6 +5,6 @@ clean:
 
 .PHONY: all clean
 
-mutatrix: mutatrix.cpp Fasta.cpp split.cpp
-	g++ mutatrix.cpp Fasta.cpp split.cpp -o mutatrix
+mutatrix: mutatrix.cpp Fasta.cpp split.cpp Repeats.cpp
+	g++ mutatrix.cpp Fasta.cpp split.cpp Repeats.cpp -o mutatrix
 
