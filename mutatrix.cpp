@@ -1,4 +1,4 @@
-#include "Fasta.h"
+#include "fastahack/Fasta.h"
 #include <getopt.h>
 #include <iostream>
 #include <algorithm>
@@ -11,10 +11,14 @@
 #include "convert.h"
 #include <iomanip>
 #include "Repeats.h"
+#include "vcflib/Variant.h"
+#include "split.h"
+#include "join.h"
 
 class Allele {
 public:
     friend bool operator==(const Allele&, const Allele&);
+    friend bool operator<(const Allele&, const Allele&);
     friend ostream& operator<<(ostream&, const Allele&);
     string ref;
     string alt;
@@ -25,6 +29,10 @@ public:
 
 bool operator==(const Allele& a, const Allele& b) {
     return a.ref == b.ref && a.alt == b.alt;
+}
+
+bool operator<(const Allele& a, const Allele& b) {
+    return convert(a) < convert(b);
 }
 
 ostream& operator<<(ostream& out, const Allele& allele) {
@@ -457,28 +465,44 @@ int main (int argc, char** argv) {
     string seqname;
     string sequence;  // holds sequence so we can process it
 
-    FastaReference fr(fastaFileName);
+    FastaReference fr;
+    fr.open(fastaFileName);
 
     string bases = "ATGC";
 
+    vcf::VariantCallFile vcfFile;
+
     // write the VCF header
-    cout 
-        << "##fileformat=VCFv4.0" << endl
+    stringstream headerss;
+    headerss 
+        << "##fileformat=VCFv4.1" << endl
         << "##fileDate=" << dateStr() << endl
-        << "##source=mutate population genome simulator" << endl
+        << "##source=mutatrix population genome simulator" << endl
         << "##seed=" << seed << endl
         << "##reference=" << fastaFileName << endl
         << "##phasing=true" << endl
         << "##commandline=" << command_line << endl
-        << "##INFO=<ID=SNP,Number=0,Type=Flag,Description=\"SNP allele\">" << endl
-        << "##INFO=<ID=MNP,Number=0,Type=Integer,Description=\"Length of MNP allele, if present\">" << endl
-        << "##INFO=<ID=INS,Number=1,Type=Integer,Description=\"Length of insertion allele, if present\">" << endl
-        << "##INFO=<ID=DEL,Number=1,Type=Integer,Description=\"Length of deletion allele, if present\">" << endl
+        << "##INFO=<ID=AC,Number=A,Type=Integer,Description=\"Alternate allele count\">" << endl
+        << "##INFO=<ID=TYPE,Number=A,Type=String,Description=\"Type of each allele (snp, ins, del, mnp, complex)\">" << endl
+        << "##INFO=<ID=NS,Number=1,Type=Integer,Description=\"Number of samples at the site\">" << endl
+        << "##INFO=<ID=NA,Number=1,Type=Integer,Description=\"Number of alternate alleles\">" << endl
+        << "##INFO=<ID=LEN,Number=A,Type=Integer,Description=\"Length of each alternate allele\">" << endl
         << "##FORMAT=<ID=GT,Number=1,Type=String,Description=\"Genotype\">" << endl
         << "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT";
-    for (int i = 0; i < population_size; ++i)
-        cout << "\t" << sample_prefix << setfill('0') << setw(sample_id_max_digits) << i + 1; // one-based sample names
-    cout << endl;
+
+    vector<string> samples;
+    for (int i = 0; i < population_size; ++i) {
+        stringstream sampless;
+        sampless << sample_prefix << setfill('0') << setw(sample_id_max_digits) << i + 1; // one-based sample names
+        samples.push_back(sampless.str());
+        headerss << "\t" << sampless.str();
+    }
+    headerss << endl;
+
+    // and set up our VCF output file
+    string header = headerss.str();
+    vcfFile.openForOutput(header);
+    cout << vcfFile.header;
 
     int copies = ploidy * population_size;
 
@@ -714,6 +738,68 @@ int main (int argc, char** argv) {
                 // shuffle the alleles around the population
                 random_shuffle(population_alleles.begin(), population_alleles.end());
 
+                vcf::Variant var(vcfFile);
+                var.sequenceName = seqname;
+                var.position = pos + 1;
+                var.quality = 99;
+                var.info["NS"].push_back(convert(population_size));
+                var.info["NA"].push_back(convert(present_alleles.size()));
+                var.format.push_back("GT");
+
+                // establish the correct reference sequence and alternate allele set
+                var.ref = ref;
+                for (vector<Allele>::iterator a = present_alleles.begin(); a != present_alleles.end(); ++a) {
+                    Allele& allele = *a;
+                    if (allele.ref.size() > var.ref.size()) {
+                        var.ref = allele.ref;
+                    }
+                }
+
+                map<string, int> alleleIndexes;
+                alleleIndexes[convert(reference_allele)] = 0; // XXX should we handle this differently, by adding the reference allele to present_alleles?
+                int i = 1;
+                for (vector<Allele>::iterator a = present_alleles.begin(); a != present_alleles.end(); ++a, ++i) {
+                    Allele& allele = *a;
+                    //cout << allele << " " << i << endl;
+                    alleleIndexes[convert(allele)] = i;
+                    //cout << allele << " " << i << endl;
+                }
+
+                //for (map<string, int>::iterator a = alleleIndexes.begin(); a != alleleIndexes.end(); ++a) {
+                //    cout << a->first << " = " << a->second << endl;
+                //}
+
+                // now the reference allele is the largest possible, adjust the alt allele strings to reflect this
+                // if we have indels, add the base before, set the position back one
+                for (vector<Allele>::iterator a = present_alleles.begin(); a != present_alleles.end(); ++a) {
+                    Allele& allele = *a;
+                    string alleleStr = var.ref;
+                    if (allele.ref.size() == allele.alt.size()) {
+                        alleleStr.replace(0, allele.alt.size(), allele.alt);
+                    } else {
+                        alleleStr.replace(0, allele.ref.size(), allele.alt);
+                    }
+                    var.alt.push_back(alleleStr);
+                }
+
+                int j = 0;
+                for (vector<string>::iterator s = samples.begin(); s != samples.end(); ++s, ++j) {
+                    string& sample = *s;
+                    vector<string> genotype;
+                    // XXX hack, maybe this should get stored in another map for easier access?
+                    for (int i = 0; i < ploidy; ++i) {
+                        int l = (j * ploidy) + i;
+                        //cout << l << " " << population_alleles.at(l) << " " << alleleIndexes[convert(population_alleles.at(l))] << endl;
+                        genotype.push_back(convert(alleleIndexes[convert(population_alleles.at(l))]));
+                    }
+                    var.samples[sample]["GT"].push_back(join(genotype, "|"));
+                    //cout << var.samples[sample]["GT"].front() << endl;
+                }
+
+                // write the genotype specs
+
+                // now write out our sequence data (FASTA files), tabulate
+                // allele frequency, and write some details to the VCF
                 for (vector<Allele>::iterator a = present_alleles.begin(); a != present_alleles.end(); ++a) {
 
                     Allele& allele = *a;
@@ -722,66 +808,52 @@ int main (int argc, char** argv) {
                     genotypes.resize(population_size);
 
                     int allele_freq = 0;
-                    // and encode the genotypes for each individual
+
+                    // obtain allele frequencies and output FASTA sequence data
+                    // for each simulated sample
                     for (int j = 0; j < population_size; ++j) {
-                        string genotype;
                         for (int i = 0; i < ploidy; ++i) {
                             int l = (j * ploidy) + i;
-                            // for simplicity, only allow reference-relative events
-                            // when we are outside of the last deletion
                             if (population_alleles.at(l) == allele) {
-                                genotype += "1|";
                                 if (!dry_run) {
                                     sequences.at(l)->write(allele.alt);
                                 }
                                 ++allele_freq;
                             } else if (population_alleles.at(l) == reference_allele) {
-                                genotype += "0|";
                                 if (!dry_run) {
                                     sequences.at(l)->write(allele.ref);
                                 }
-                            } else {
-                                genotype += ".|";
                             }
                         }
-                        genotype = genotype.substr(0, genotype.size() - 1);
-                        // and record it
-                        genotypes.at(j) = genotype;
                     }
 
-                    // and write lines of VCF output
-                    // #CHROM  POS     ID      REF     ALT     QUAL    FILTER  INFO    FORMAT
-                    cout << seqname
-                         << "\t" << pos + 1
-                         << "\t" << "."
-                         << "\t" << allele.ref
-                         << "\t" << allele.alt
-                         << "\t" << 99
-                         << "\t" << "."
-                         << "\t" << "NS=" << population_size << ";AC=" << allele_freq;
+                    // set up the allele-specific INFO fields in the VCF record
+                    var.info["AC"].push_back(convert(allele_freq));
 
                     int delta = allele.alt.size() - allele.ref.size();
                     if (delta == 0) {
                         if (allele.ref.size() == 1) {
-                            cout << ";SNP";
+                            var.info["TYPE"].push_back("snp");
+                            var.info["LEN"].push_back(convert(allele.ref.size()));
                         } else {
-                            cout << ";MNP=" << len;
+                            var.info["TYPE"].push_back("mnp");;
+                            var.info["LEN"].push_back(convert(allele.ref.size()));
                         }
                     } else if (delta > 0) {
-                        cout << ";INS=" << abs(delta);
+                        var.info["TYPE"].push_back("ins");;
+                        var.info["LEN"].push_back(convert(abs(delta)));
                     } else {
-                        cout << ";DEL=" << abs(delta);
+                        var.info["TYPE"].push_back("del");;
+                        var.info["LEN"].push_back(convert(abs(delta)));
                     }
                     if (!allele.type.empty()) {
-                        cout << ";" << allele.type;
+                        var.infoFlags[allele.type] = true;
                     }
-                    cout << "\t" << "GT";
 
-                    for (vector<string>::iterator g = genotypes.begin(); g != genotypes.end(); ++g) {
-                        cout << "\t" << *g;
-                    }
-                    cout << endl;
                 }
+
+                // write the VCF record to stdout
+                cout << var << endl;
 
                 int largest_ref = 1; // enforce one pos
                 for (vector<Allele>::iterator a = present_alleles.begin(); a != present_alleles.end(); ++a) {
