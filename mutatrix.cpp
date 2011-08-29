@@ -547,6 +547,12 @@ int main (int argc, char** argv) {
 
             string ref = sequence.substr(pos, 1); // by default, ref is just the current base
 
+            // skip non-DNA sequence information
+            if (!(ref == "A" || ref == "T" || ref == "C" || ref == "G")) {
+                pos += ref.size();
+                continue;
+            }
+
             vector<Allele> alleles;
 
             // establish if we are in a repeat
@@ -742,6 +748,8 @@ int main (int argc, char** argv) {
                 var.sequenceName = seqname;
                 var.position = pos + 1;
                 var.quality = 99;
+                var.id = ".";
+                var.filter = ".";
                 var.info["NS"].push_back(convert(population_size));
                 var.info["NA"].push_back(convert(present_alleles.size()));
                 var.format.push_back("GT");
