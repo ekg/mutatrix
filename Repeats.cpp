@@ -22,7 +22,7 @@ map<string, int> repeatCounts(long int position, string& sequence, int maxsize) 
             ++steps;
         }
         // if we went left and right a non-zero number of times, 
-        if (steps > 0) {
+        if (steps > 1) {
             counts[seq] = steps;
         }
     }

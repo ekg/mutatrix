@@ -487,6 +487,7 @@ int main (int argc, char** argv) {
         << "##INFO=<ID=NS,Number=1,Type=Integer,Description=\"Number of samples at the site\">" << endl
         << "##INFO=<ID=NA,Number=1,Type=Integer,Description=\"Number of alternate alleles\">" << endl
         << "##INFO=<ID=LEN,Number=A,Type=Integer,Description=\"Length of each alternate allele\">" << endl
+        << "##INFO=<ID=MICROSAT,Number=1,Type=Flag,Description=\"Generated at a sequence repeat loci\">" << endl
         << "##FORMAT=<ID=GT,Number=1,Type=String,Description=\"Genotype\">" << endl
         << "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT";
 
@@ -568,8 +569,12 @@ int main (int argc, char** argv) {
 
             if (pos > microsatellite_end_pos) {
 
-                map<string, int> repeats = repeatCounts(pos, sequence, repeat_size_max);
+                map<string, int> repeats = repeatCounts(pos + 1, sequence, repeat_size_max);
                 if (repeats.size() > 0) {
+
+                    // reset the position and reference
+                    //ref = sequence.substr(pos, 1);
+                    //pos += 1;
 
                     string seq;
                     int repeat_count = 0;
@@ -579,12 +584,13 @@ int main (int argc, char** argv) {
                             repeat_count = r->second;
                             seq = r->first;
                         }
+                        //cout << r->first << " x " << r->second << endl;
                     }
 
                     int microsatellite_length = repeat_count * seq.size();
 
                     // record end of microsatellite so we don't generate more mutations until we pass it
-                    microsatellite_end_pos = pos + microsatellite_length;
+                    microsatellite_end_pos = pos + microsatellite_length - 1;
 
                     if (microsatellite_length > microsatellite_min_length
                             && genrand_real1() / copies 
@@ -758,10 +764,14 @@ int main (int argc, char** argv) {
                 var.ref = ref;
                 for (vector<Allele>::iterator a = present_alleles.begin(); a != present_alleles.end(); ++a) {
                     Allele& allele = *a;
+                    //cout << allele << endl;
                     if (allele.ref.size() > var.ref.size()) {
                         var.ref = allele.ref;
                     }
                 }
+
+                // debugging, uncomment to see sequence context
+                //cout << sequence.substr(pos - 10, 10) << "*" << ref << "*" << sequence.substr(pos + 1, 9) << endl;
 
                 map<string, int> alleleIndexes;
                 alleleIndexes[convert(reference_allele)] = 0; // XXX should we handle this differently, by adding the reference allele to present_alleles?
