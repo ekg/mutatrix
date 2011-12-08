@@ -487,7 +487,7 @@ int main (int argc, char** argv) {
         << "##INFO=<ID=NS,Number=1,Type=Integer,Description=\"Number of samples at the site\">" << endl
         << "##INFO=<ID=NA,Number=1,Type=Integer,Description=\"Number of alternate alleles\">" << endl
         << "##INFO=<ID=LEN,Number=A,Type=Integer,Description=\"Length of each alternate allele\">" << endl
-        << "##INFO=<ID=MICROSAT,Number=1,Type=Flag,Description=\"Generated at a sequence repeat loci\">" << endl
+        << "##INFO=<ID=MICROSAT,Number=0,Type=Flag,Description=\"Generated at a sequence repeat loci\">" << endl
         << "##FORMAT=<ID=GT,Number=1,Type=String,Description=\"Genotype\">" << endl
         << "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT";
 
@@ -551,6 +551,9 @@ int main (int argc, char** argv) {
             // skip non-DNA sequence information
             if (!(ref == "A" || ref == "T" || ref == "C" || ref == "G")) {
                 pos += ref.size();
+                for (vector<SampleFastaFile*>::iterator s = sequences.begin(); s != sequences.end(); ++s) {
+                    (*s)->write(ref);
+                }
                 continue;
             }
 
@@ -569,6 +572,7 @@ int main (int argc, char** argv) {
 
             if (pos > microsatellite_end_pos) {
 
+                // XXX you need to step the position to match this...
                 map<string, int> repeats = repeatCounts(pos + 1, sequence, repeat_size_max);
                 if (repeats.size() > 0) {
 
@@ -688,7 +692,7 @@ int main (int argc, char** argv) {
                     // deletion
                         alleles.push_back(Allele(sequence.substr(pos, 1 + len), sequence.substr(pos, 1)));
                     } else {
-                        string alt;
+                        string alt = ref;
                     // insertion?
                         // insert some random de novo bases
                         while (alt.length() < len + 1) {
@@ -719,6 +723,31 @@ int main (int argc, char** argv) {
 
                 vector<bool> alts;
                 random_shuffle(alleles.begin(), alleles.end());
+
+                // establish the correct reference sequence and alternate allele set
+                for (vector<Allele>::iterator a = alleles.begin(); a != alleles.end(); ++a) {
+                    Allele& allele = *a;
+                    //cout << allele << endl;
+                    if (allele.ref.size() > ref.size()) {
+                        ref = allele.ref;
+                    }
+                }
+
+                vector<string> altstrs;
+                // now the reference allele is the largest possible, adjust the alt allele strings to reflect this
+                // if we have indels, add the base before, set the position back one
+                for (vector<Allele>::iterator a = alleles.begin(); a != alleles.end(); ++a) {
+                    Allele& allele = *a;
+                    string alleleStr = ref;
+                    if (allele.ref.size() == allele.alt.size()) {
+                        alleleStr.replace(0, allele.alt.size(), allele.alt);
+                    } else {
+                        alleleStr.replace(0, allele.ref.size(), allele.alt);
+                    }
+                    allele.ref = ref;
+                    allele.alt = alleleStr;
+                    altstrs.push_back(alleleStr);
+                }
 
                 vector<Allele> population_alleles;
                 vector<Allele> present_alleles; // filtered for AFS > 0 in the sample
@@ -759,16 +788,8 @@ int main (int argc, char** argv) {
                 var.info["NS"].push_back(convert(population_size));
                 var.info["NA"].push_back(convert(present_alleles.size()));
                 var.format.push_back("GT");
-
-                // establish the correct reference sequence and alternate allele set
                 var.ref = ref;
-                for (vector<Allele>::iterator a = present_alleles.begin(); a != present_alleles.end(); ++a) {
-                    Allele& allele = *a;
-                    //cout << allele << endl;
-                    if (allele.ref.size() > var.ref.size()) {
-                        var.ref = allele.ref;
-                    }
-                }
+                var.alt = altstrs;
 
                 // debugging, uncomment to see sequence context
                 //cout << sequence.substr(pos - 10, 10) << "*" << ref << "*" << sequence.substr(pos + 1, 9) << endl;
@@ -787,19 +808,6 @@ int main (int argc, char** argv) {
                 //    cout << a->first << " = " << a->second << endl;
                 //}
 
-                // now the reference allele is the largest possible, adjust the alt allele strings to reflect this
-                // if we have indels, add the base before, set the position back one
-                for (vector<Allele>::iterator a = present_alleles.begin(); a != present_alleles.end(); ++a) {
-                    Allele& allele = *a;
-                    string alleleStr = var.ref;
-                    if (allele.ref.size() == allele.alt.size()) {
-                        alleleStr.replace(0, allele.alt.size(), allele.alt);
-                    } else {
-                        alleleStr.replace(0, allele.ref.size(), allele.alt);
-                    }
-                    var.alt.push_back(alleleStr);
-                }
-
                 int j = 0;
                 for (vector<string>::iterator s = samples.begin(); s != samples.end(); ++s, ++j) {
                     string& sample = *s;
@@ -814,10 +822,26 @@ int main (int argc, char** argv) {
                     //cout << var.samples[sample]["GT"].front() << endl;
                 }
 
-                // write the genotype specs
+                // XXX THIS IS BROKEN BECAUSE YOUR REFERENCE ALLELE CHANGES
+                // LENGTH WITH DELETIONS.
+                //
+                // IT'S POSSIBLE TO GET COMPLEX ALLELES AT THE INTERSECTIONS
+                // BETWEEN ONE ALLELIC VARIANT AND ANOTHER.  THIS IS BROKEN!
+                //
+                // TO FIX--- BUILD HAPLOTYPES, THEN DISTRIBUTE THEM WITHIN THE POPULATION
+                //
+                // now write out our sequence data (FASTA files)
+                for (int j = 0; j < population_size; ++j) {
+                    for (int i = 0; i < ploidy; ++i) {
+                        int l = (j * ploidy) + i;
+                        Allele& allele = population_alleles.at(l);
+                        if (!dry_run) {
+                            sequences.at(l)->write(allele.alt);
+                        }
+                    }
+                }
 
-                // now write out our sequence data (FASTA files), tabulate
-                // allele frequency, and write some details to the VCF
+                // tabulate allele frequency, and write some details to the VCF
                 for (vector<Allele>::iterator a = present_alleles.begin(); a != present_alleles.end(); ++a) {
 
                     Allele& allele = *a;
@@ -833,14 +857,7 @@ int main (int argc, char** argv) {
                         for (int i = 0; i < ploidy; ++i) {
                             int l = (j * ploidy) + i;
                             if (population_alleles.at(l) == allele) {
-                                if (!dry_run) {
-                                    sequences.at(l)->write(allele.alt);
-                                }
                                 ++allele_freq;
-                            } else if (population_alleles.at(l) == reference_allele) {
-                                if (!dry_run) {
-                                    sequences.at(l)->write(allele.ref);
-                                }
                             }
                         }
                     }
