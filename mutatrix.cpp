@@ -733,22 +733,6 @@ int main (int argc, char** argv) {
                     }
                 }
 
-                vector<string> altstrs;
-                // now the reference allele is the largest possible, adjust the alt allele strings to reflect this
-                // if we have indels, add the base before, set the position back one
-                for (vector<Allele>::iterator a = alleles.begin(); a != alleles.end(); ++a) {
-                    Allele& allele = *a;
-                    string alleleStr = ref;
-                    if (allele.ref.size() == allele.alt.size()) {
-                        alleleStr.replace(0, allele.alt.size(), allele.alt);
-                    } else {
-                        alleleStr.replace(0, allele.ref.size(), allele.alt);
-                    }
-                    allele.ref = ref;
-                    allele.alt = alleleStr;
-                    altstrs.push_back(alleleStr);
-                }
-
                 vector<Allele> population_alleles;
                 vector<Allele> present_alleles; // filtered for AFS > 0 in the sample
                 
@@ -773,6 +757,22 @@ int main (int argc, char** argv) {
                     population_alleles.push_back(reference_allele);
                 }
                 //present_alleles.push_back(reference_allele);
+
+                vector<string> altstrs;
+                // now the reference allele is the largest possible, adjust the alt allele strings to reflect this
+                // if we have indels, add the base before, set the position back one
+                for (vector<Allele>::iterator a = present_alleles.begin(); a != present_alleles.end(); ++a) {
+                    Allele& allele = *a;
+                    string alleleStr = ref;
+                    if (allele.ref.size() == allele.alt.size()) {
+                        alleleStr.replace(0, allele.alt.size(), allele.alt);
+                    } else {
+                        alleleStr.replace(0, allele.ref.size(), allele.alt);
+                    }
+                    allele.ref = ref;
+                    allele.alt = alleleStr;
+                    altstrs.push_back(alleleStr);
+                }
 
                 assert(population_alleles.size() == copies);
 
