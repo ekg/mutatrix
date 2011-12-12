@@ -148,7 +148,7 @@ void printSummary() {
          << "options:" << endl 
          << "    -s, --snp-rate          the relative rate of point mutation per bp per chrom (default 0.00001)" << endl
          << "    -M, --mnp-ratio         the geometric scaling probability for 2bp multi-nucleotide-polymorphisms relative to SNPs," << endl
-         << "                            2bp MNPs relative to 3pb MNPs, etc. (default 0.01)" << endl
+         << "                            2bp MNPs relative to 3bp MNPs, etc. (default 0.01)" << endl
          << "    -i, --indel-rate        the rate of non-repeat indel mutations per bp per chrom (default 0.000001)" << endl
          << "    -X, --indel-max         maximum indel length (default 1000)" << endl
          << "    -z, --indel-alpha       the alpha parameter of the indel length frequency distribution (zeta(l), default 1.1)" << endl
