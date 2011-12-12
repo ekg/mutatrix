@@ -724,15 +724,6 @@ int main (int argc, char** argv) {
                 vector<bool> alts;
                 random_shuffle(alleles.begin(), alleles.end());
 
-                // establish the correct reference sequence and alternate allele set
-                for (vector<Allele>::iterator a = alleles.begin(); a != alleles.end(); ++a) {
-                    Allele& allele = *a;
-                    //cout << allele << endl;
-                    if (allele.ref.size() > ref.size()) {
-                        ref = allele.ref;
-                    }
-                }
-
                 vector<Allele> population_alleles;
                 vector<Allele> present_alleles; // filtered for AFS > 0 in the sample
                 
@@ -751,12 +742,22 @@ int main (int argc, char** argv) {
                     }
                 }
 
+                reverse(present_alleles.begin(), present_alleles.end());
+
+                // establish the correct reference sequence and alternate allele set
+                for (vector<Allele>::iterator a = present_alleles.begin(); a != present_alleles.end(); ++a) {
+                    Allele& allele = *a;
+                    //cout << allele << endl;
+                    if (allele.ref.size() > ref.size()) {
+                        ref = allele.ref;
+                    }
+                }
+
                 // reference alleles take up the rest
                 Allele reference_allele = Allele(ref, ref);
                 for (int i = 0; i < remaining_copies; ++i) {
                     population_alleles.push_back(reference_allele);
                 }
-                //present_alleles.push_back(reference_allele);
 
                 vector<string> altstrs;
                 // now the reference allele is the largest possible, adjust the alt allele strings to reflect this
