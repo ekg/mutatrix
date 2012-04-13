@@ -40,7 +40,7 @@ results=results.vcf
 #    | samtools fillmd -Aru - $reference 2>/dev/null \
 #    | freebayes --no-filters -d -f $reference --stdin \
 #    | tee $results.unsorted
-freebayes -C 2 --max-complex-gap 10 --no-filters --left-align-indels -f $reference *sorted.bam >$results
+freebayes.unstable -C 2 --max-complex-gap 10 --no-filters --left-align-indels -f $reference *sorted.bam >$results
 
 # sort the vcf file
 
@@ -55,7 +55,7 @@ echo
 #echo Q >= 0
 #vcf-compare $answers.gz $results.gz
 
-vcf2bed.py <answers.vcf >answers.bed
+#vcf2bed.py <answers.vcf >answers.bed
 
 for Q in 0 1 10 20 30 40
 do
@@ -63,16 +63,16 @@ do
     echo "--- Q >= $Q ---"
     echo
     echo "--- records only in answers.vcf: ---"
-    cat results.vcf | vcffilter -f "QUAL > $Q" | vcf2bed.py >results.bed
-    vcfintersect -v -b results.bed answers.vcf | vcfstats
+    cat results.vcf | vcffilter -f "QUAL > $Q" | vcfallelicprimitives >results.$Q.vcf
+    vcfintersect -r $reference -v -i results.$Q.vcf answers.vcf | vcfstats
     echo
     echo
     echo "--- records only in results.vcf: ---"
-    vcfintersect -v -b answers.bed results.vcf | vcffilter -f "QUAL > $Q" | vcfstats
+    vcfintersect -r $reference -v -i answers.vcf results.$Q.vcf | vcfstats
     echo
     echo
     echo "--- records in results.vcf: ---"
-    cat results.vcf | vcffilter -f "QUAL > $Q" | vcfstats
+    vcfstats results.$Q.vcf 
     echo
     echo
 done

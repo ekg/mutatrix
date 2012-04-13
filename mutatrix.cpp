@@ -6,6 +6,7 @@
 #include <stdlib.h>
 #include <time.h>
 #include "mt19937ar.h"
+#include <random>
 #include <cmath>
 #include <assert.h>
 #include "convert.h"
@@ -151,6 +152,7 @@ void printSummary() {
          << "                            2bp MNPs relative to 3bp MNPs, etc. (default 0.01)" << endl
          << "    -i, --indel-rate        the rate of non-repeat indel mutations per bp per chrom (default 0.000001)" << endl
          << "    -X, --indel-max         maximum indel length (default 1000)" << endl
+	 << "    -U, --uniform-indel     generate indel lengths from a uniform distribution from 0 to indel-max" << endl
          << "    -z, --indel-alpha       the alpha parameter of the indel length frequency distribution (zeta(l), default 1.1)" << endl
          << "                            indels of length N have probability zeta(N)" << endl
          << "    -q, --repeat-max-size   maximum size of exect repeat unit in the genome to detect (default 20)" << endl
@@ -245,6 +247,11 @@ double zetarandom(double alpha) {
 
 }
 
+
+/*
+
+*/
+
 int main (int argc, char** argv) {
 
     double snp_mutation_rate = 0.000025;
@@ -267,6 +274,9 @@ int main (int argc, char** argv) {
     string sample_prefix = "";
     bool dry_run = false;
     int repeat_size_max = 20;
+    bool uniform_indel_distribution = false;
+
+    double p, lambda, shape, mu, sigma;
 
     string command_line = argv[0];
     for (int i = 1; i < argc; ++i) {
@@ -300,12 +310,13 @@ int main (int argc, char** argv) {
             {"sample-prefix", required_argument, 0, 'S'},
             {"random-seed", required_argument, 0, 'g'},
             {"dry-run", no_argument, 0, 'd'},
+	    {"uniform-indels", no_argument, 0, 'U'},
             {0, 0, 0, 0}
         };
         /* getopt_long stores the option index here. */
         int option_index = 0;
 
-        c = getopt_long (argc, argv, "hda:z:s:i:q:p:n:M:X:t:m:P:S:g:l:j:", long_options, &option_index);
+        c = getopt_long (argc, argv, "hdUa:z:s:i:q:p:n:M:X:t:m:P:S:g:l:j:", long_options, &option_index);
 
       /* Detect the end of the options. */
           if (c == -1)
@@ -326,6 +337,10 @@ int main (int argc, char** argv) {
           case 'd':
             dry_run = true;
             break;
+
+	  case 'U':
+	    uniform_indel_distribution = true;
+	    break;
 
           case 'q':
             if (!convert(optarg, repeat_size_max)) {
@@ -462,6 +477,16 @@ int main (int argc, char** argv) {
 
     init_genrand(seed); // seed mt with current time
 
+    //mt19937 eng(seed);
+
+    int bpPerHaplotypeMean = 1000;
+    double bpPerHaplotypeSigma = 200;
+    normal_distribution<double> normal(mu, sigma);
+     
+    //lambda = 7.0;
+    //poisson_distribution<int> poisson(lambda);
+    //poisson(eng);
+
     string seqname;
     string sequence;  // holds sequence so we can process it
 
@@ -533,6 +558,8 @@ int main (int argc, char** argv) {
         }
     }
 
+
+
     for (FastaIndex::iterator s = fr.index->begin(); s != fr.index->end(); ++s) {
 
         FastaIndexEntry& indexEntry = s->second;
@@ -573,7 +600,7 @@ int main (int argc, char** argv) {
             if (pos > microsatellite_end_pos) {
 
                 // XXX you need to step the position to match this...
-                map<string, int> repeats = repeatCounts(pos + 1, sequence, repeat_size_max);
+                map<string, int> repeats = repeatCounts(pos + 1, (const string&) sequence, repeat_size_max);
                 if (repeats.size() > 0) {
 
                     // reset the position and reference
@@ -685,7 +712,11 @@ int main (int argc, char** argv) {
             // indel case
             if (genrand_real1() / copies < indel_mutation_rate) {
                 // how many bp?
-                len = (int) floor(zetarandom(indel_alpha));
+		if (uniform_indel_distribution) {
+		    len = (int) floor(genrand_real1() * indel_max);
+		} else {
+		    len = (int) floor(zetarandom(indel_alpha));
+		}
                 // guard against out-of-sequence indels
                 if (pos + len < sequence.size() && len <= indel_max) {
                     if (genrand_int32() % 2 == 0) {

@@ -1,6 +1,6 @@
 VCFLIB_ROOT=vcflib
 FASTAHACK_ROOT=fastahack
-INCLUDES = -lm -lz -L. -L$(VCFLIB_ROOT)/tabixpp/ -ltabix
+INCLUDES = -lm -lz -L. -L$(VCFLIB_ROOT)/tabixpp/ -ltabix -std=c++0x
 
 TABIX_OBJECTS=$(VCFLIB_ROOT)/tabixpp/tabix.o $(VCFLIB_ROOT)/tabixpp/bgzf.o
 SMITHWATERMAN_OBJECTS=$(VCFLIB_ROOT)/smithwaterman/SmithWatermanGotoh.o

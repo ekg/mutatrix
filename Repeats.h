@@ -4,4 +4,4 @@
 
 using namespace std;
 
-map<string, int> repeatCounts(long int pos, string& seq, int maxsize);
+map<string, int> repeatCounts(long int pos, const string& seq, int maxsize);
