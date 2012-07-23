@@ -24,4 +24,8 @@ $(FASTAHACK_ROOT)/Fasta.o:
 
 mutatrix: mutatrix.cpp split.cpp Repeats.cpp $(VCFLIB_ROOT)/Variant.o $(FASTAHACK_ROOT)/Fasta.o
 	g++ mutatrix.cpp split.cpp Repeats.cpp $(VCFLIB_ROOT)/Variant.o \
-		$(TABIX_OBJECTS) $(SMITHWATERMAN_OBJECTS) $(FASTAHACK_ROOT)/Fasta.o -o mutatrix $(INCLUDES)
+		$(VCFLIB_ROOT)/smithwaterman/IndelAllele.o \
+		$(VCFLIB_ROOT)/smithwaterman/LeftAlign.o \
+		$(VCFLIB_ROOT)/smithwaterman/disorder.c \
+		$(TABIX_OBJECTS) $(SMITHWATERMAN_OBJECTS) \
+		$(FASTAHACK_ROOT)/Fasta.o -o mutatrix $(INCLUDES)
