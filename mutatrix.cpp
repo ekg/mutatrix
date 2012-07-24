@@ -147,20 +147,23 @@ void printSummary() {
          << "usage: mutatrix [options] reference.fa >mutants.vcf" << endl
          << endl
          << "options:" << endl 
-         << "    -s, --snp-rate          the relative rate of point mutation per bp per chrom (default 0.00001)" << endl
+         << "    -s, --snp-rate          the relative rate of point mutation per bp per chrom (default 0.001)" << endl
          << "    -M, --mnp-ratio         the geometric scaling probability for 2bp multi-nucleotide-polymorphisms relative to SNPs," << endl
          << "                            2bp MNPs relative to 3bp MNPs, etc. (default 0.01)" << endl
-         << "    -i, --indel-rate        the rate of non-repeat indel mutations per bp per chrom (default 0.000001)" << endl
+         << "    -i, --indel-rate        the rate of non-repeat indel mutations per bp per chrom (default 0.0001)" << endl
          << "    -X, --indel-max         maximum indel length (default 1000)" << endl
 	 << "    -U, --uniform-indel     generate indel lengths from a uniform distribution from 0 to indel-max" << endl
          << "    -z, --indel-alpha       the alpha parameter of the indel length frequency distribution (zeta(l), default 1.1)" << endl
          << "                            indels of length N have probability zeta(N)" << endl
          << "    -q, --repeat-max-size   maximum size of exect repeat unit in the genome to detect (default 20)" << endl
-         << "    -m, --microsat-rate     the rate of microsatellite mutation at microsatellite sites (default 0.000005)" << endl
+         << "    -m, --microsat-rate     the rate of microsatellite mutation at microsatellite sites (default 0.0001)" << endl
          << "    -t, --microsat-afs-alpha    alpha parameter for microsatellite allele count (default 1.7)" << endl
          << "    -j, --microsat-len-alpha    alpha parameter for microsatellite mutation length (default 1.7)" << endl
          << "    -m, --microsat-min-len  the minimum number of bases in a repeat to consider it a microsatellite (default 1)" << endl
          << "    -a, --afs-alpha         the allele frequency spectrum distribution scaling parameter (1/i * alpha, default 1.0)" << endl
+
+         << "    -T, --ts-tv-ratio       ratio of transitions to transversions among SNPs (default 2.5)" << endl
+         //<< "    -D, --deamination-ratio ratio of aminations to deaminations (default 1.8)" << endl
          << "    -p, --ploidy            ploidy of the population (default 1)" << endl
          << "    -n, --population-size   number of individuals in the population" << endl
          << "    -P, --file-prefix       prefix output fasta files with this" << endl
@@ -193,6 +196,34 @@ void writeFasta(ostream& out, string& seqname, string& sequence, int linewidth =
         pos += linewidth;
     }
 }
+
+bool isTransition(string& ref, string& alt) {
+    if (((ref == "A" && alt == "G") || (ref == "G" && alt == "A")) ||
+        ((ref == "C" && alt == "T") || (ref == "T" && alt == "C"))) {
+        return true;
+    } else {
+        return false;
+    }
+}
+
+bool isDeamination(const string& ref, const string& alt) {
+    if ((ref == "G" && alt == "A") ||
+        (ref == "C" && alt == "T")) {
+        return true;
+    } else {
+        return false;
+    }
+}
+
+bool isAmination(const string& ref, const string& alt) {
+    if ((ref == "A" && alt == "G") ||
+        (ref == "T" && alt == "C")) {
+        return true;
+    } else {
+        return false;
+    }
+}
+
 
 
 string dateStr(void) {
@@ -254,15 +285,17 @@ double zetarandom(double alpha) {
 
 int main (int argc, char** argv) {
 
-    double snp_mutation_rate = 0.000025;
-    double indel_mutation_rate = 0.000005;
+    double snp_mutation_rate = 0.001;
+    double indel_mutation_rate = 0.0001;
     double het_rate = 0.5;
     double afs_alpha = 1;
     double indel_alpha = 3;
     double microsatellite_afs_alpha = 1;
     double microsatellite_len_alpha = 1.7;
-    double microsatellite_mutation_rate = 0.000005;
+    double microsatellite_mutation_rate = 0.0001;
     double mnp_ratio = 0.01;
+    double tstv_ratio = 2.5;
+    double deamination_ratio = 1.8;
     int microsatellite_min_length = 1;
     int indel_max = 1000;
     int ploidy = 1;
@@ -310,13 +343,15 @@ int main (int argc, char** argv) {
             {"sample-prefix", required_argument, 0, 'S'},
             {"random-seed", required_argument, 0, 'g'},
             {"dry-run", no_argument, 0, 'd'},
-	    {"uniform-indels", no_argument, 0, 'U'},
+            {"uniform-indels", no_argument, 0, 'U'},
+            {"ts-tv-ratio", required_argument, 0, 'T'},
+            {"deamination-ratio", required_argument, 0, 'D'},
             {0, 0, 0, 0}
         };
         /* getopt_long stores the option index here. */
         int option_index = 0;
 
-        c = getopt_long (argc, argv, "hdUa:z:s:i:q:p:n:M:X:t:m:P:S:g:l:j:", long_options, &option_index);
+        c = getopt_long (argc, argv, "hdUa:z:s:i:q:p:n:M:X:t:m:P:S:g:l:j:T:", long_options, &option_index);
 
       /* Detect the end of the options. */
           if (c == -1)
@@ -394,6 +429,13 @@ int main (int argc, char** argv) {
           case 'm':
             if (!convert(optarg, microsatellite_mutation_rate)) {
                 cerr << "could not read -m, --microsat-rate" << endl;
+                exit(1);
+            }
+            break;
+
+          case 'T':
+            if (!convert(optarg, tstv_ratio)) {
+                cerr << "could not read -T, --ts-tv-ratio" << endl;
                 exit(1);
             }
             break;
@@ -523,12 +565,11 @@ int main (int argc, char** argv) {
         samples.push_back(sampless.str());
         headerss << "\t" << sampless.str();
     }
-    headerss << endl;
 
     // and set up our VCF output file
     string header = headerss.str();
     vcfFile.openForOutput(header);
-    cout << vcfFile.header;
+    cout << vcfFile.header << endl;
 
     int copies = ploidy * population_size;
 
@@ -624,8 +665,9 @@ int main (int argc, char** argv) {
                     microsatellite_end_pos = pos + microsatellite_length - 1;
 
                     if (microsatellite_length > microsatellite_min_length
-                            && genrand_real1() / copies 
-                                < microsatellite_mutation_rate * repeat_count) {
+                            //&& genrand_real1() / copies 
+                            //    < microsatellite_mutation_rate * repeat_count) {
+                            && genrand_real1() > pow(1 - (microsatellite_mutation_rate * repeat_count), log(copies) * 2)) {
 
                         // establish the relative rate of ins and del events
                         /*
@@ -686,12 +728,30 @@ int main (int argc, char** argv) {
             }
 
             // snp case
-            if (genrand_real1() / copies < snp_mutation_rate) {
+            if (genrand_real1() > pow(1 - snp_mutation_rate, log(copies) * 2)) {
 
                 // make an alternate allele
+                /*
                 string alt = ref;
                 while (alt == ref) {
                     alt = string(1, bases.at(genrand_int32() % 4));
+                }
+                */
+                string alt = ref;
+                if (genrand_real1() > 1 / (1 + tstv_ratio)) {
+                    if (ref == "A") {
+                        alt = "G";
+                    } else if (ref == "G") {
+                        alt = "A";
+                    } else if (ref == "C") {
+                        alt = "T";
+                    } else if (ref == "T") {
+                        alt = "C";
+                    }
+                } else {
+                    while (alt == ref || isTransition(ref, alt)) {
+                        alt = string(1, bases.at(genrand_int32() % 4));
+                    }
                 }
 
                 if (genrand_real1() < mnp_ratio) {
@@ -710,7 +770,7 @@ int main (int argc, char** argv) {
             }
 
             // indel case
-            if (genrand_real1() / copies < indel_mutation_rate) {
+            if (genrand_real1() > pow(1 - indel_mutation_rate, log(copies) * 2)) {
                 // how many bp?
 		if (uniform_indel_distribution) {
 		    len = (int) floor(genrand_real1() * indel_max);
