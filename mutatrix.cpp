@@ -815,8 +815,8 @@ int main (int argc, char** argv) {
                 vector<bool> alts;
                 random_shuffle(alleles.begin(), alleles.end());
 
-                vector<Allele> population_alleles;
-                vector<Allele> present_alleles; // filtered for AFS > 0 in the sample
+                vector<Allele*> population_alleles;
+                list<Allele> present_alleles; // filtered for AFS > 0 in the sample
                 
                 // AFS simulation
                 int remaining_copies = copies;
@@ -826,8 +826,9 @@ int main (int argc, char** argv) {
                     int allele_freq = random_allele_frequency(remaining_copies, afs_alpha);
                     if (allele_freq > 0) {
                         present_alleles.push_back(allele);
+			Allele* allelePtr = &present_alleles.back();
                         for (int i = 0; i < allele_freq; ++i) {
-                            population_alleles.push_back(allele);
+                            population_alleles.push_back(allelePtr);
                         }
                         remaining_copies -= allele_freq;
                     }
@@ -836,7 +837,7 @@ int main (int argc, char** argv) {
                 reverse(present_alleles.begin(), present_alleles.end());
 
                 // establish the correct reference sequence and alternate allele set
-                for (vector<Allele>::iterator a = present_alleles.begin(); a != present_alleles.end(); ++a) {
+                for (list<Allele>::iterator a = present_alleles.begin(); a != present_alleles.end(); ++a) {
                     Allele& allele = *a;
                     //cout << allele << endl;
                     if (allele.ref.size() > ref.size()) {
@@ -847,13 +848,13 @@ int main (int argc, char** argv) {
                 // reference alleles take up the rest
                 Allele reference_allele = Allele(ref, ref);
                 for (int i = 0; i < remaining_copies; ++i) {
-                    population_alleles.push_back(reference_allele);
+                    population_alleles.push_back(&reference_allele);
                 }
 
                 vector<string> altstrs;
                 // now the reference allele is the largest possible, adjust the alt allele strings to reflect this
                 // if we have indels, add the base before, set the position back one
-                for (vector<Allele>::iterator a = present_alleles.begin(); a != present_alleles.end(); ++a) {
+                for (list<Allele>::iterator a = present_alleles.begin(); a != present_alleles.end(); ++a) {
                     Allele& allele = *a;
                     string alleleStr = ref;
                     if (allele.ref.size() == allele.alt.size()) {
@@ -889,7 +890,7 @@ int main (int argc, char** argv) {
                 map<string, int> alleleIndexes;
                 alleleIndexes[convert(reference_allele)] = 0; // XXX should we handle this differently, by adding the reference allele to present_alleles?
                 int i = 1;
-                for (vector<Allele>::iterator a = present_alleles.begin(); a != present_alleles.end(); ++a, ++i) {
+                for (list<Allele>::iterator a = present_alleles.begin(); a != present_alleles.end(); ++a, ++i) {
                     Allele& allele = *a;
                     //cout << allele << " " << i << endl;
                     alleleIndexes[convert(allele)] = i;
@@ -908,7 +909,7 @@ int main (int argc, char** argv) {
                     for (int i = 0; i < ploidy; ++i) {
                         int l = (j * ploidy) + i;
                         //cout << l << " " << population_alleles.at(l) << " " << alleleIndexes[convert(population_alleles.at(l))] << endl;
-                        genotype.push_back(convert(alleleIndexes[convert(population_alleles.at(l))]));
+                        genotype.push_back(convert(alleleIndexes[convert(*population_alleles.at(l))]));
                     }
                     var.samples[sample]["GT"].push_back(join(genotype, "|"));
                     //cout << var.samples[sample]["GT"].front() << endl;
@@ -926,17 +927,18 @@ int main (int argc, char** argv) {
                 for (int j = 0; j < population_size; ++j) {
                     for (int i = 0; i < ploidy; ++i) {
                         int l = (j * ploidy) + i;
-                        Allele& allele = population_alleles.at(l);
+                        Allele* allele = population_alleles.at(l);
                         if (!dry_run) {
-                            sequences.at(l)->write(allele.alt);
+                            sequences.at(l)->write(allele->alt);
                         }
                     }
                 }
 
                 // tabulate allele frequency, and write some details to the VCF
-                for (vector<Allele>::iterator a = present_alleles.begin(); a != present_alleles.end(); ++a) {
+                for (list<Allele>::iterator a = present_alleles.begin(); a != present_alleles.end(); ++a) {
 
                     Allele& allele = *a;
+		    Allele* allelePtr = &*a;
 
                     vector<string> genotypes;
                     genotypes.resize(population_size);
@@ -948,7 +950,7 @@ int main (int argc, char** argv) {
                     for (int j = 0; j < population_size; ++j) {
                         for (int i = 0; i < ploidy; ++i) {
                             int l = (j * ploidy) + i;
-                            if (population_alleles.at(l) == allele) {
+                            if (population_alleles.at(l) == allelePtr) {
                                 ++allele_freq;
                             }
                         }
@@ -983,7 +985,7 @@ int main (int argc, char** argv) {
                 cout << var << endl;
 
                 int largest_ref = 1; // enforce one pos
-                for (vector<Allele>::iterator a = present_alleles.begin(); a != present_alleles.end(); ++a) {
+                for (list<Allele>::iterator a = present_alleles.begin(); a != present_alleles.end(); ++a) {
                     if (a->ref.size() > largest_ref) {
                         largest_ref = a->ref.size();
                     }
