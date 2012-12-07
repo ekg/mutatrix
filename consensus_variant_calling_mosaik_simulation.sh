@@ -64,6 +64,8 @@ answers_primitives=answers.primitives.vcf.gz
 vcfallelicprimitives $answers | bgziptabix $answers_primitives
 #freebayes.unstable -C 2 --max-complex-gap 40 --no-filters --left-align-indels -f $reference --haplotype-basis-alleles $answers_primitives *sorted.bam >$results
 
+sets=""
+
 files=""
 for bam in *sorted.bam; do files=$files" -in $bam "; done
 
@@ -72,34 +74,65 @@ time ( bamtools merge $files \
     | bamleftalign -f $reference \
     | samtools calmd -EAru - $reference 2>/dev/null \
     | freebayes -C 2 --stdin -f $reference >freebayes.default.$results ) &
+sets="$sets freebayes.default.$results"
+
+echo freebayes maf0.1
+time ( bamtools merge $files \
+    | bamleftalign -f $reference \
+    | samtools calmd -EAru - $reference 2>/dev/null \
+    | freebayes -C 2 -F 0.1 --stdin -f $reference >freebayes.default.maf0.1.$results ) &
+sets="$sets freebayes.default.maf0.1.$results"
+
+echo freebayes maf0.2
+time ( bamtools merge $files \
+    | bamleftalign -f $reference \
+    | samtools calmd -EAru - $reference 2>/dev/null \
+    | freebayes -C 2 -F 0.2 --stdin -f $reference >freebayes.default.maf0.2.$results ) &
+sets="$sets freebayes.default.maf0.2.$results"
 
 echo freebayes maf0.3
 time ( bamtools merge $files \
     | bamleftalign -f $reference \
     | samtools calmd -EAru - $reference 2>/dev/null \
     | freebayes -C 2 -F 0.3 --stdin -f $reference >freebayes.default.maf0.3.$results ) &
+sets="$sets freebayes.default.maf0.3.$results"
 
 echo freebayes ogap
 time ( bamtools merge $files \
-    | ogap -z -R 25 -C 20 -Q 20 -S 0 -f $reference \
+    | ogap -z -R 25 -C 30 -Q 30 -S 0 -f $reference \
     | bamleftalign -f $reference \
     | samtools calmd -EAru - $reference 2>/dev/null \
     | freebayes -C 2 --stdin -f $reference >freebayes.default.ogap.$results ) &
+sets="$sets freebayes.default.ogap.$results"
 
 echo freebayes local assembly
 time ( bamtools merge $files \
-    | ogap -z -R 25 -C 20 -Q 20 -S 0 -f $reference \
+    | ogap -z -R 25 -C 30 -Q 30 -S 0 -f $reference \
     | bamleftalign -f $reference \
     | samtools calmd -EAru - $reference 2>/dev/null \
     | freebayes -C 2 --stdin --max-complex-gap 30 -f $reference >freebayes.local_assembly.$results ) &
+sets="$sets freebayes.local_assembly.$results"
+
+echo freebayes local assembly ogap and maf0.3
+time ( bamtools merge $files \
+    | ogap -z -R 25 -C 30 -Q 30 -S 0 -f $reference \
+    | bamleftalign -f $reference \
+    | samtools calmd -EAru - $reference 2>/dev/null \
+    | freebayes -C 2 -F 0.3 --stdin --max-complex-gap 30 -f $reference >freebayes.local_assembly.maf0.3.$results ) &
+sets="$sets freebayes.local_assembly.maf0.3.$results"
 
 echo
 echo samtools
 time samtoolsbam2vcf $reference *sorted.bam >samtools.$results &
+sets="$sets samtools.$results"
 
 echo
 echo gatk
 time gatkbam2vcf $reference *sorted.bam | grep -v "^INFO" | grep -v "^WARN" >gatk.$results &
+sets="$sets gatk.$results"
+
+echo
+echo sets are $sets
 
 echo
 echo waiting
@@ -112,7 +145,7 @@ echo -e set\\tQUAL\\tnum_sites\\tfalse_positive_sites\\tfalse_negative_sites\\tn
 cat results.roc.tsv
 
 
-for results in freebayes.default.$results freebayes.default.maf0.3.$results freebayes.default.ogap.$results freebayes.local_assembly.$results samtools.$results gatk.$results;
+for results in $sets;
 do
 
     set=$(basename $results .results.vcf)
