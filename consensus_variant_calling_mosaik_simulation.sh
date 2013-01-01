@@ -55,14 +55,10 @@ echo calling...
 echo
 
 results=results.vcf
-#bamtools filter $(for file in *sorted.bam; do echo $file; done | sed -e "s/^/ -in /g") \
-#    | bamleftalign -f $reference \
-#    | samtools fillmd -Aru - $reference 2>/dev/null \
-#    | freebayes --no-filters -d -f $reference --stdin \
-#    | tee $results.unsorted
 answers_primitives=answers.primitives.vcf.gz
+
 vcfallelicprimitives $answers | bgziptabix $answers_primitives
-#freebayes.unstable -C 2 --max-complex-gap 40 --no-filters --left-align-indels -f $reference --haplotype-basis-alleles $answers_primitives *sorted.bam >$results
+
 
 sets=""
 
@@ -73,62 +69,42 @@ echo freebayes
 time ( bamtools merge $files \
     | bamleftalign -f $reference \
     | samtools calmd -EAru - $reference 2>/dev/null \
-    | freebayes -C 2 --stdin -f $reference >freebayes.default.$results ) &
+    | freebayes --stdin -f $reference >freebayes.default.$results ) 2>freebayes.default.timing &
 sets="$sets freebayes.default.$results"
-
-echo freebayes maf0.1
-time ( bamtools merge $files \
-    | bamleftalign -f $reference \
-    | samtools calmd -EAru - $reference 2>/dev/null \
-    | freebayes -C 2 -F 0.1 --stdin -f $reference >freebayes.default.maf0.1.$results ) &
-sets="$sets freebayes.default.maf0.1.$results"
-
-echo freebayes maf0.2
-time ( bamtools merge $files \
-    | bamleftalign -f $reference \
-    | samtools calmd -EAru - $reference 2>/dev/null \
-    | freebayes -C 2 -F 0.2 --stdin -f $reference >freebayes.default.maf0.2.$results ) &
-sets="$sets freebayes.default.maf0.2.$results"
-
-echo freebayes maf0.3
-time ( bamtools merge $files \
-    | bamleftalign -f $reference \
-    | samtools calmd -EAru - $reference 2>/dev/null \
-    | freebayes -C 2 -F 0.3 --stdin -f $reference >freebayes.default.maf0.3.$results ) &
-sets="$sets freebayes.default.maf0.3.$results"
-
-echo freebayes ogap
-time ( bamtools merge $files \
-    | ogap -z -R 25 -C 30 -Q 30 -S 0 -f $reference \
-    | bamleftalign -f $reference \
-    | samtools calmd -EAru - $reference 2>/dev/null \
-    | freebayes -C 2 --stdin -f $reference >freebayes.default.ogap.$results ) &
-sets="$sets freebayes.default.ogap.$results"
 
 echo freebayes local assembly
 time ( bamtools merge $files \
-    | ogap -z -R 25 -C 30 -Q 30 -S 0 -f $reference \
     | bamleftalign -f $reference \
     | samtools calmd -EAru - $reference 2>/dev/null \
-    | freebayes -C 2 --stdin --max-complex-gap 30 -f $reference >freebayes.local_assembly.$results ) &
+    | freebayes --stdin --max-complex-gap 30 -f $reference >freebayes.local_assembly.$results ) 2>freebayes.local_assembly.timing &
 sets="$sets freebayes.local_assembly.$results"
 
-echo freebayes local assembly ogap and maf0.3
+echo freebayes abobs mapq
 time ( bamtools merge $files \
-    | ogap -z -R 25 -C 30 -Q 30 -S 0 -f $reference \
     | bamleftalign -f $reference \
     | samtools calmd -EAru - $reference 2>/dev/null \
-    | freebayes -C 2 -F 0.3 --stdin --max-complex-gap 30 -f $reference >freebayes.local_assembly.maf0.3.$results ) &
-sets="$sets freebayes.local_assembly.maf0.3.$results"
+    | freebayes --stdin \
+        --allele-balance-priors --binomial-obs-priors \
+        --use-mapping-quality -f $reference >freebayes.abobs.mq.$results ) 2>freebayes.abobs.mq.timing &
+sets="$sets freebayes.abobs.mq.$results"
+
+echo freebayes local assembly abobs mapq
+time ( bamtools merge $files \
+    | bamleftalign -f $reference \
+    | samtools calmd -EAru - $reference 2>/dev/null \
+    | freebayes --stdin \
+        --allele-balance-priors --binomial-obs-priors \
+        --use-mapping-quality --max-complex-gap 30 -f $reference >freebayes.local_assembly.abobs.mq.$results ) 2>freebayes.local_assembly.abobs.mq.timing &
+sets="$sets freebayes.local_assembly.abobs.mq.$results"
 
 echo
 echo samtools
-time samtoolsbam2vcf $reference *sorted.bam >samtools.$results &
+time samtoolsbam2vcf $reference *sorted.bam >samtools.$results 2>samtools.timing &
 sets="$sets samtools.$results"
 
 echo
 echo gatk
-time gatkbam2vcf $reference *sorted.bam | grep -v "^INFO" | grep -v "^WARN" >gatk.$results &
+time gatkbam2vcf $reference *sorted.bam | grep -v "^INFO" | grep -v "^WARN" >gatk.$results 2>gatk.timing &
 sets="$sets gatk.$results"
 
 echo
@@ -139,11 +115,7 @@ echo waiting
 wait  # awaits completion of variant detection
 
 
-# sort the vcf file
-
-echo -e set\\tQUAL\\tnum_sites\\tfalse_positive_sites\\tfalse_negative_sites\\tnum_snps\\tfalse_positive_snps\\tfalse_negative_snps\\tnum_mnps\\tfalse_positive_mnps\\tfalse_negative_mnps\\tnum_indels\\tfalse_positive_indels\\tfalse_negative_indels >results.roc.tsv
-cat results.roc.tsv
-
+echo -e "set\tthreshold\tnum_snps\tfalse_positive_snps\tfalse_negative_snps\tnum_indels\tfalse_positive_indels\tfalse_negative_indels" >results.roc.tsv
 
 for results in $sets;
 do
@@ -154,44 +126,6 @@ do
     echo comparing $results from $set
     echo
 
-    last=$results
-    levels=$(seq 0 1 100)
-
-    for Q in $levels 
-    do
-	cat $last | vcffilter -f "QUAL > $Q" | vcfallelicprimitives >$results.$Q.vcf
-	last=$results.$Q.vcf
-
-	vcfintersect -r $reference -v -i $results.$Q.vcf $answers_primitives | vcfstats >false_negatives.$Q.stats
-	vcfintersect -r $reference -v -i $answers_primitives $results.$Q.vcf | vcfstats >false_positives.$Q.stats
-	vcfstats $results.$Q.vcf >calls.$Q.stats
-
-	fn=$(cat false_negatives.$Q.stats | grep "total variant sites:" | cut -f 2)
-	fp=$(cat false_positives.$Q.stats | grep "total variant sites:" | cut -f 2)
-	nc=$(cat calls.$Q.stats | grep "total variant sites:" | cut -f 2)
-
-	fns=$(cat false_negatives.$Q.stats | grep "^snps:" | cut -f 2)
-	fps=$(cat false_positives.$Q.stats | grep "^snps:" | cut -f 2)
-	ncs=$(cat calls.$Q.stats | grep "^snps:" | cut -f 2)
-
-	fnm=$(cat false_negatives.$Q.stats | grep "^mnps:" | cut -f 2)
-	fpm=$(cat false_positives.$Q.stats | grep "^mnps:" | cut -f 2)
-	ncm=$(cat calls.$Q.stats | grep "^mnps:" | cut -f 2)
-
-	fni=$(cat false_negatives.$Q.stats | grep "^indels:" | cut -f 2)
-	fpi=$(cat false_positives.$Q.stats | grep "^indels:" | cut -f 2)
-	nci=$(cat calls.$Q.stats | grep "^indels:" | cut -f 2)
-
-	rm false_negatives.$Q.stats false_positives.$Q.stats calls.$Q.stats
-
-
-	echo -e $set\\t$Q\\t$nc\\t$fp\\t$fn\\t$ncs\\t$fps\\t$fns\\t$ncm\\t$fpm\\t$fnm\\t$nci\\t$fpi\\t$fni >>results.roc.tsv
-	echo -e $set\\t$Q\\t$nc\\t$fp\\t$fn\\t$ncs\\t$fps\\t$fns\\t$ncm\\t$fpm\\t$fnm\\t$nci\\t$fpi\\t$fni
-    done
-
-    for Q in $levels
-    do
-	rm $results.$Q.vcf
-    done
+    vcfallelicprimitives $results | vcfroc -r $reference -t $answers_primitives | grep -v threshold | sed "s/^/$set\t/" >>results.roc.tsv
 
 done

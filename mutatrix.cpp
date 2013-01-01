@@ -41,6 +41,18 @@ ostream& operator<<(ostream& out, const Allele& allele) {
     return out;
 }
 
+// string * overload
+// from http://stackoverflow.com/a/5145880
+std::string operator*(std::string const &s, size_t n)
+{
+    std::string r;  // empty string
+    r.reserve(n * s.size());
+    for (size_t i=0; i<n; i++)
+        r += s;
+    return r;
+}
+
+
 class SampleFastaFile {
 
 public:
@@ -614,6 +626,8 @@ int main (int argc, char** argv) {
         long int microsatellite_end_pos = 0;
         while (pos < sequence.size() - 1) {
 
+	    //cout << pos + 1 << " microsat end pos " << microsatellite_end_pos << endl;
+
             string ref = sequence.substr(pos, 1); // by default, ref is just the current base
 
             // skip non-DNA sequence information
@@ -640,24 +654,21 @@ int main (int argc, char** argv) {
 
             if (pos > microsatellite_end_pos) {
 
-                // XXX you need to step the position to match this...
                 map<string, int> repeats = repeatCounts(pos + 1, (const string&) sequence, repeat_size_max);
-                if (repeats.size() > 0) {
 
-                    // reset the position and reference
-                    //ref = sequence.substr(pos, 1);
-                    //pos += 1;
+		string seq;
+		int repeat_count = 0;
+		// get the "biggest" repeat, the most likely ms allele at this site
+		for (map<string, int>::iterator r = repeats.begin(); r != repeats.end(); ++r) {
+		    if (repeat_count < r->second) {
+			repeat_count = r->second;
+			seq = r->first;
+		    }
+		}
+		//cout << pos + 1 << " " << sequence.substr(pos + 1, seq.size() * repeat_count) << " ?= " << seq * repeat_count << endl;
 
-                    string seq;
-                    int repeat_count = 0;
-                    // get the "biggest" repeat, the most likely ms allele at this site
-                    for (map<string, int>::iterator r = repeats.begin(); r != repeats.end(); ++r) {
-                        if (repeat_count < r->second) {
-                            repeat_count = r->second;
-                            seq = r->first;
-                        }
-                        //cout << r->first << " x " << r->second << endl;
-                    }
+		// guard ensures that we are in a pure repeat situoation, tandem-tandem repeats are not handled presently
+                if (repeats.size() > 0 && sequence.substr(pos + 1, seq.size() * repeat_count) == seq * repeat_count) {
 
                     int microsatellite_length = repeat_count * seq.size();
 
@@ -721,6 +732,7 @@ int main (int argc, char** argv) {
                             } else {
                                 alleles.push_back(Allele(ref + alt, ref, "MICROSAT"));
                             }
+			    //cout << pos + 1 << " "  << microsatellite_length << " " << alleles.back() << endl;
                         }
                         //cout << "alleles.size() == " << alleles.size() << endl;
                     }
