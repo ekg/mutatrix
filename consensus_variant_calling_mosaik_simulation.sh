@@ -1,6 +1,10 @@
 #!/bin/bash
 
 
+if [ $# -lt 5 ]; then
+    echo usage: $0 [ref] [num samples] [coverage] [readlength] [fragment length]
+    exit
+fi
 
 reference=$1
 n=$2 # number of samples
@@ -65,38 +69,17 @@ sets=""
 files=""
 for bam in *sorted.bam; do files=$files" -in $bam "; done
 
+echo
 echo freebayes
-time ( bamtools merge $files \
-    | bamleftalign -f $reference \
-    | samtools calmd -EAru - $reference 2>/dev/null \
-    | freebayes --stdin -f $reference >freebayes.default.$results ) 2>freebayes.default.timing &
-sets="$sets freebayes.default.$results"
+time freebayes -f $reference *sorted.bam >freebayes.$results 2>freebayes.timing &
+sets="$sets freebayes.$results"
 
-echo freebayes local assembly
-time ( bamtools merge $files \
-    | bamleftalign -f $reference \
-    | samtools calmd -EAru - $reference 2>/dev/null \
-    | freebayes --stdin --max-complex-gap 30 -f $reference >freebayes.local_assembly.$results ) 2>freebayes.local_assembly.timing &
-sets="$sets freebayes.local_assembly.$results"
+echo
+echo freebayes k20
+time freebayes -f $reference --max-complex-gap 20 *sorted.bam >freebayes.k20.$results 2>freebayes.timing &
+sets="$sets freebayes.k20.$results"
 
-echo freebayes abobs mapq
-time ( bamtools merge $files \
-    | bamleftalign -f $reference \
-    | samtools calmd -EAru - $reference 2>/dev/null \
-    | freebayes --stdin \
-        --allele-balance-priors --binomial-obs-priors \
-        --use-mapping-quality -f $reference >freebayes.abobs.mq.$results ) 2>freebayes.abobs.mq.timing &
-sets="$sets freebayes.abobs.mq.$results"
-
-echo freebayes local assembly abobs mapq
-time ( bamtools merge $files \
-    | bamleftalign -f $reference \
-    | samtools calmd -EAru - $reference 2>/dev/null \
-    | freebayes --stdin \
-        --allele-balance-priors --binomial-obs-priors \
-        --use-mapping-quality --max-complex-gap 30 -f $reference >freebayes.local_assembly.abobs.mq.$results ) 2>freebayes.local_assembly.abobs.mq.timing &
-sets="$sets freebayes.local_assembly.abobs.mq.$results"
-
+# samtools is too slow to test on >100 samples, but here goes
 echo
 echo samtools
 time samtoolsbam2vcf $reference *sorted.bam >samtools.$results 2>samtools.timing &
@@ -106,6 +89,14 @@ echo
 echo gatk
 time gatkbam2vcf $reference *sorted.bam | grep -v "^INFO" | grep -v "^WARN" >gatk.$results 2>gatk.timing &
 sets="$sets gatk.$results"
+
+echo
+echo gatk open
+files=""
+for bam in *sorted.bam; do files=$files" -I $bam "; done
+time java -jar /share/home/erik/src/GenomeAnalysisTKLite-2.2-15-g4828906/GenomeAnalysisTKLite.jar \
+    -T UnifiedGenotyper -stand_emit_conf 1 -glm BOTH -R $reference $files | grep -v "^INFO" | grep -v "^WARN" >gatk.open.$results 2>gatk.open.timing &
+sets="$sets gatk.open.$results"
 
 echo
 echo sets are $sets
