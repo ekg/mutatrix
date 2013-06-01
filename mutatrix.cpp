@@ -333,162 +333,162 @@ int main (int argc, char** argv) {
 
     while (true) {
         static struct option long_options[] =
-        {
-            /* These options set a flag. */
-            //{"verbose", no_argument,       &verbose_flag, 1},
-            //{"brief",   no_argument,       &verbose_flag, 0},
-            {"help", no_argument, 0, 'h'},
-            {"snp-rate",  required_argument, 0, 's'},
-            {"mnp-ratio", required_argument, 0, 'M'},
-            {"indel-rate",  required_argument, 0, 'i'},
-            {"indel-alpha", required_argument, 0, 'z'},
-            {"indel-max", required_argument, 0, 'X'},
-            {"repeat-size-max", required_argument, 0, 'q'},
-            {"microsat-rate",  required_argument, 0, 'm'},
-            {"microsat-afs-alpha", required_argument, 0, 't'},
-            {"microsat-len-alpha", required_argument, 0, 'j'},
-            {"microsat-min-len", required_argument, 0, 'l'},
-            {"afs-alpha",  required_argument, 0, 'a'},
-            {"ploidy", required_argument, 0, 'p'},
-            {"population-size", required_argument, 0, 'n'},
-            {"file-prefix", required_argument, 0, 'P'},
-            {"sample-prefix", required_argument, 0, 'S'},
-            {"random-seed", required_argument, 0, 'g'},
-            {"dry-run", no_argument, 0, 'd'},
-            {"uniform-indels", no_argument, 0, 'U'},
-            {"ts-tv-ratio", required_argument, 0, 'T'},
-            {"deamination-ratio", required_argument, 0, 'D'},
-            {0, 0, 0, 0}
-        };
+            {
+                /* These options set a flag. */
+                //{"verbose", no_argument,       &verbose_flag, 1},
+                //{"brief",   no_argument,       &verbose_flag, 0},
+                {"help", no_argument, 0, 'h'},
+                {"snp-rate",  required_argument, 0, 's'},
+                {"mnp-ratio", required_argument, 0, 'M'},
+                {"indel-rate",  required_argument, 0, 'i'},
+                {"indel-alpha", required_argument, 0, 'z'},
+                {"indel-max", required_argument, 0, 'X'},
+                {"repeat-size-max", required_argument, 0, 'q'},
+                {"microsat-rate",  required_argument, 0, 'm'},
+                {"microsat-afs-alpha", required_argument, 0, 't'},
+                {"microsat-len-alpha", required_argument, 0, 'j'},
+                {"microsat-min-len", required_argument, 0, 'l'},
+                {"afs-alpha",  required_argument, 0, 'a'},
+                {"ploidy", required_argument, 0, 'p'},
+                {"population-size", required_argument, 0, 'n'},
+                {"file-prefix", required_argument, 0, 'P'},
+                {"sample-prefix", required_argument, 0, 'S'},
+                {"random-seed", required_argument, 0, 'g'},
+                {"dry-run", no_argument, 0, 'd'},
+                {"uniform-indels", no_argument, 0, 'U'},
+                {"ts-tv-ratio", required_argument, 0, 'T'},
+                {"deamination-ratio", required_argument, 0, 'D'},
+                {0, 0, 0, 0}
+            };
         /* getopt_long stores the option index here. */
         int option_index = 0;
 
         c = getopt_long (argc, argv, "hdUa:z:s:i:q:p:n:M:X:t:m:P:S:g:l:j:T:", long_options, &option_index);
 
-      /* Detect the end of the options. */
-          if (c == -1)
+        /* Detect the end of the options. */
+        if (c == -1)
             break;
  
-          switch (c)
-            {
-            case 0:
+        switch (c)
+        {
+        case 0:
             /* If this option set a flag, do nothing else now. */
             if (long_options[option_index].flag != 0)
-              break;
+                break;
             printf ("option %s", long_options[option_index].name);
             if (optarg)
-              printf (" with arg %s", optarg);
+                printf (" with arg %s", optarg);
             printf ("\n");
             break;
 
-          case 'd':
+        case 'd':
             dry_run = true;
             break;
 
-	  case 'U':
-	    uniform_indel_distribution = true;
-	    break;
+        case 'U':
+            uniform_indel_distribution = true;
+            break;
 
-          case 'q':
+        case 'q':
             if (!convert(optarg, repeat_size_max)) {
                 cerr << "could not read -q, --repeat-size-max" << endl;
                 exit(1);
             }
             break;
 
-          case 's':
+        case 's':
             if (!convert(optarg, snp_mutation_rate)) {
                 cerr << "could not read -s, --snp-rate" << endl;
                 exit(1);
             }
             break;
 
-          case 'i':
+        case 'i':
             if (!convert(optarg, indel_mutation_rate)) {
                 cerr << "could not read -i, --indel-rate" << endl;
                 exit(1);
             }
             break;
 
-          case 'a':
+        case 'a':
             if (!convert(optarg, afs_alpha)) {
                 cerr << "could not read -a, --afs-alpha" << endl;
                 exit(1);
             }
             break;
  
-          case 'z':
+        case 'z':
             if (!convert(optarg, indel_alpha)) {
                 cerr << "could not read -z, --indel-alpha" << endl;
                 exit(1);
             }
             break;
 
-          case 'X':
+        case 'X':
             if (!convert(optarg, indel_max)) {
                 cerr << "could not read -M, --indel-max" << endl;
                 exit(1);
             }
             break;
  
-          case 'M':
+        case 'M':
             if (!convert(optarg, mnp_ratio)) {
                 cerr << "could not read -m, --mnp-ratio" << endl;
                 exit(1);
             }
             break;
  
-          case 'm':
+        case 'm':
             if (!convert(optarg, microsatellite_mutation_rate)) {
                 cerr << "could not read -m, --microsat-rate" << endl;
                 exit(1);
             }
             break;
 
-          case 'T':
+        case 'T':
             if (!convert(optarg, tstv_ratio)) {
                 cerr << "could not read -T, --ts-tv-ratio" << endl;
                 exit(1);
             }
             break;
  
-          case 't':
+        case 't':
             if (!convert(optarg, microsatellite_afs_alpha)) {
                 cerr << "could not read -m, --microsatellite-afs-alpha" << endl;
                 exit(1);
             }
             break;
  
-          case 'j':
+        case 'j':
             if (!convert(optarg, microsatellite_len_alpha)) {
                 cerr << "could not read -m, --microsatellite-len-alpha" << endl;
                 exit(1);
             }
             break;
  
-          case 'l':
+        case 'l':
             if (!convert(optarg, microsatellite_min_length)) {
                 cerr << "could not read -l, --microsat-min-len" << endl;
                 exit(1);
             }
             break;
  
-          case 'p':
+        case 'p':
             if (!convert(optarg, ploidy)) {
                 cerr << "could not read -p, --ploidy" << endl;
                 exit(1);
             }
             break;
 
-          case 'P':
+        case 'P':
             file_prefix = optarg;
             break;
 
-          case 'S':
+        case 'S':
             sample_prefix = optarg;
             break;
  
-          case 'n':
+        case 'n':
             if (!convert(optarg, population_size)) {
                 cerr << "could not read -n, --population-size" << endl;
                 exit(1);
@@ -496,28 +496,28 @@ int main (int argc, char** argv) {
             sample_id_max_digits = strlen(optarg);
             break;
 
-          case 'g':
+        case 'g':
             if (!convert(optarg, seed)) {
                 cerr << "could not read -g, --random-seed" << endl;
                 exit(1);
             }
             break;
 
-          case 'h':
+        case 'h':
             printSummary();
             exit(0);
             break;
  
-          case '?':
+        case '?':
             /* getopt_long already printed an error message. */
             printSummary();
             exit(1);
             break;
  
-          default:
+        default:
             abort ();
-          }
-      }
+        }
+    }
 
     /* Print any remaining command line arguments (not options). */
     if (optind < argc) {
@@ -626,7 +626,7 @@ int main (int argc, char** argv) {
         long int microsatellite_end_pos = 0;
         while (pos < sequence.size() - 1) {
 
-	    //cout << pos + 1 << " microsat end pos " << microsatellite_end_pos << endl;
+            //cout << pos + 1 << " microsat end pos " << microsatellite_end_pos << endl;
 
             string ref = sequence.substr(pos, 1); // by default, ref is just the current base
 
@@ -656,18 +656,18 @@ int main (int argc, char** argv) {
 
                 map<string, int> repeats = repeatCounts(pos + 1, (const string&) sequence, repeat_size_max);
 
-		string seq;
-		int repeat_count = 0;
-		// get the "biggest" repeat, the most likely ms allele at this site
-		for (map<string, int>::iterator r = repeats.begin(); r != repeats.end(); ++r) {
-		    if (repeat_count < r->second) {
-			repeat_count = r->second;
-			seq = r->first;
-		    }
-		}
-		//cout << pos + 1 << " " << sequence.substr(pos + 1, seq.size() * repeat_count) << " ?= " << seq * repeat_count << endl;
+                string seq;
+                int repeat_count = 0;
+                // get the "biggest" repeat, the most likely ms allele at this site
+                for (map<string, int>::iterator r = repeats.begin(); r != repeats.end(); ++r) {
+                    if (repeat_count < r->second) {
+                        repeat_count = r->second;
+                        seq = r->first;
+                    }
+                }
+                //cout << pos + 1 << " " << sequence.substr(pos + 1, seq.size() * repeat_count) << " ?= " << seq * repeat_count << endl;
 
-		// guard ensures that we are in a pure repeat situoation, tandem-tandem repeats are not handled presently
+                // guard ensures that we are in a pure repeat situoation, tandem-tandem repeats are not handled presently
                 if (repeats.size() > 0 && sequence.substr(pos + 1, seq.size() * repeat_count) == seq * repeat_count) {
 
                     int microsatellite_length = repeat_count * seq.size();
@@ -676,20 +676,20 @@ int main (int argc, char** argv) {
                     microsatellite_end_pos = pos + microsatellite_length - 1;
 
                     if (microsatellite_length > microsatellite_min_length
-                            //&& genrand_real1() / copies 
-                            //    < microsatellite_mutation_rate * repeat_count) {
-                            && genrand_real1() > pow(1 - (microsatellite_mutation_rate * repeat_count), log(copies) * 2)) {
+                        //&& genrand_real1() / copies 
+                        //    < microsatellite_mutation_rate * repeat_count) {
+                        && genrand_real1() > pow(1 - (microsatellite_mutation_rate * repeat_count), log(copies) * 2)) {
 
                         // establish the relative rate of ins and del events
                         /*
-                        long double repeatMutationDelProbability = microsatelliteDelProb(repeat_count);
-                        long double repeatMutationInsProbability = microsatelliteInsProb(repeat_count);
-                        long double indel_balance = 1;
-                        if (repeatMutationInsProbability > repeatMutationDelProbability) {
-                            indel_balance = repeatMutationInsProbability / repeatMutationDelProbability;
-                        } else {
-                            indel_balance = 1 - (repeatMutationInsProbability / repeatMutationDelProbability);
-                        }
+                          long double repeatMutationDelProbability = microsatelliteDelProb(repeat_count);
+                          long double repeatMutationInsProbability = microsatelliteInsProb(repeat_count);
+                          long double indel_balance = 1;
+                          if (repeatMutationInsProbability > repeatMutationDelProbability) {
+                          indel_balance = repeatMutationInsProbability / repeatMutationDelProbability;
+                          } else {
+                          indel_balance = 1 - (repeatMutationInsProbability / repeatMutationDelProbability);
+                          }
                         */
                         double indel_balance = 0.5;
 
@@ -718,7 +718,7 @@ int main (int argc, char** argv) {
 
                         // generate alleles
                         for (map<int, bool>::iterator f = allele_lengths.begin();
-                                f != allele_lengths.end(); ++f) {
+                             f != allele_lengths.end(); ++f) {
 
                             int allele_length = f->first;
                             int c = abs(f->first);
@@ -732,7 +732,7 @@ int main (int argc, char** argv) {
                             } else {
                                 alleles.push_back(Allele(ref + alt, ref, "MICROSAT"));
                             }
-			    //cout << pos + 1 << " "  << microsatellite_length << " " << alleles.back() << endl;
+                            //cout << pos + 1 << " "  << microsatellite_length << " " << alleles.back() << endl;
                         }
                         //cout << "alleles.size() == " << alleles.size() << endl;
                     }
@@ -744,10 +744,10 @@ int main (int argc, char** argv) {
 
                 // make an alternate allele
                 /*
-                string alt = ref;
-                while (alt == ref) {
-                    alt = string(1, bases.at(genrand_int32() % 4));
-                }
+                  string alt = ref;
+                  while (alt == ref) {
+                  alt = string(1, bases.at(genrand_int32() % 4));
+                  }
                 */
                 string alt = ref;
                 if (genrand_real1() > 1 / (1 + tstv_ratio)) {
@@ -784,19 +784,19 @@ int main (int argc, char** argv) {
             // indel case
             if (genrand_real1() > pow(1 - indel_mutation_rate, log(copies) * 2)) {
                 // how many bp?
-		if (uniform_indel_distribution) {
-		    len = (int) floor(genrand_real1() * indel_max);
-		} else {
-		    len = (int) floor(zetarandom(indel_alpha));
-		}
+                if (uniform_indel_distribution) {
+                    len = (int) floor(genrand_real1() * indel_max);
+                } else {
+                    len = (int) floor(zetarandom(indel_alpha));
+                }
                 // guard against out-of-sequence indels
                 if (pos + len < sequence.size() && len <= indel_max) {
                     if (genrand_int32() % 2 == 0) {
-                    // deletion
+                        // deletion
                         alleles.push_back(Allele(sequence.substr(pos, 1 + len), sequence.substr(pos, 1)));
                     } else {
                         string alt = ref;
-                    // insertion?
+                        // insertion?
                         // insert some random de novo bases
                         while (alt.length() < len + 1) {
                             alt += string(1, bases.at(genrand_int32() % 4));
@@ -838,7 +838,7 @@ int main (int argc, char** argv) {
                     int allele_freq = random_allele_frequency(remaining_copies, afs_alpha);
                     if (allele_freq > 0) {
                         present_alleles.push_back(allele);
-			Allele* allelePtr = &present_alleles.back();
+                        Allele* allelePtr = &present_alleles.back();
                         for (int i = 0; i < allele_freq; ++i) {
                             population_alleles.push_back(allelePtr);
                         }
@@ -950,7 +950,7 @@ int main (int argc, char** argv) {
                 for (list<Allele>::iterator a = present_alleles.begin(); a != present_alleles.end(); ++a) {
 
                     Allele& allele = *a;
-		    Allele* allelePtr = &*a;
+                    Allele* allelePtr = &*a;
 
                     vector<string> genotypes;
                     genotypes.resize(population_size);
