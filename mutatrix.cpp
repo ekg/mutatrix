@@ -624,7 +624,7 @@ int main (int argc, char** argv) {
         
         long int pos = 0;
         long int microsatellite_end_pos = 0;
-        while (pos < sequence.size() - 1) {
+        while (pos < sequence.size()) {
 
             //cout << pos + 1 << " microsat end pos " << microsatellite_end_pos << endl;
 
@@ -740,7 +740,7 @@ int main (int argc, char** argv) {
             }
 
             // snp case
-            if (genrand_real1() > pow(1 - snp_mutation_rate, log(copies) * 2)) {
+            if (genrand_real1() > pow(1 - snp_mutation_rate, log(max(copies, 2)) * 2)) {
 
                 // make an alternate allele
                 /*
@@ -782,7 +782,7 @@ int main (int argc, char** argv) {
             }
 
             // indel case
-            if (genrand_real1() > pow(1 - indel_mutation_rate, log(copies) * 2)) {
+            if (genrand_real1() > pow(1 - indel_mutation_rate, log(max(copies, 2)) * 2)) {
                 // how many bp?
                 if (uniform_indel_distribution) {
                     len = (int) floor(genrand_real1() * indel_max);
