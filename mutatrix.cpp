@@ -846,6 +846,16 @@ int main (int argc, char** argv) {
                     }
                 }
 
+                if (present_alleles.empty()) {
+                    for (int i = 0; i < copies; ++i) {
+                        if (!dry_run) {
+                            sequences.at(i)->write(ref);
+                        }
+                    }
+                    pos += ref.size();
+                    continue;
+                }
+
                 reverse(present_alleles.begin(), present_alleles.end());
 
                 // establish the correct reference sequence and alternate allele set
