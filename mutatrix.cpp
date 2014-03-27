@@ -164,7 +164,7 @@ void printSummary() {
          << "                            2bp MNPs relative to 3bp MNPs, etc. (default 0.01)" << endl
          << "    -i, --indel-rate        the rate of non-repeat indel mutations per bp per chrom (default 0.0001)" << endl
          << "    -X, --indel-max         maximum indel length (default 1000)" << endl
-	 << "    -U, --uniform-indel     generate indel lengths from a uniform distribution from 0 to indel-max" << endl
+         << "    -U, --uniform-indel     generate indel lengths from a uniform distribution from 0 to indel-max" << endl
          << "    -z, --indel-alpha       the alpha parameter of the indel length frequency distribution (zeta(l), default 1.1)" << endl
          << "                            indels of length N have probability zeta(N)" << endl
          << "    -q, --repeat-max-size   maximum size of exect repeat unit in the genome to detect (default 20)" << endl
