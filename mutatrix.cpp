@@ -12,7 +12,7 @@
 #include "convert.h"
 #include <iomanip>
 #include "Repeats.h"
-#include "vcflib/Variant.h"
+#include "vcflib/src/Variant.h"
 #include "split.h"
 #include "join.h"
 
