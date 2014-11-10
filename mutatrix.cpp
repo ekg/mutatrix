@@ -11,8 +11,7 @@
 #include <assert.h>
 #include "convert.h"
 #include <iomanip>
-#include "Repeats.h"
-#include "vcflib/Variant.h"
+#include "Variant.h"
 #include "split.h"
 #include "join.h"
 
