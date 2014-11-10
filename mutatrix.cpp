@@ -163,7 +163,7 @@ void printSummary() {
          << "                            2bp MNPs relative to 3bp MNPs, etc. (default 0.01)" << endl
          << "    -i, --indel-rate        the rate of non-repeat indel mutations per bp per chrom (default 0.0001)" << endl
          << "    -X, --indel-max         maximum indel length (default 1000)" << endl
-	 << "    -U, --uniform-indel     generate indel lengths from a uniform distribution from 0 to indel-max" << endl
+         << "    -U, --uniform-indel     generate indel lengths from a uniform distribution from 0 to indel-max" << endl
          << "    -z, --indel-alpha       the alpha parameter of the indel length frequency distribution (zeta(l), default 1.1)" << endl
          << "                            indels of length N have probability zeta(N)" << endl
          << "    -q, --repeat-max-size   maximum size of exect repeat unit in the genome to detect (default 20)" << endl
@@ -623,7 +623,7 @@ int main (int argc, char** argv) {
         
         long int pos = 0;
         long int microsatellite_end_pos = 0;
-        while (pos < sequence.size() - 1) {
+        while (pos < sequence.size()) {
 
             //cout << pos + 1 << " microsat end pos " << microsatellite_end_pos << endl;
 
@@ -739,7 +739,7 @@ int main (int argc, char** argv) {
             }
 
             // snp case
-            if (genrand_real1() > pow(1 - snp_mutation_rate, log(copies) * 2)) {
+            if (genrand_real1() > pow(1 - snp_mutation_rate, log(max(copies, 2)) * 2)) {
 
                 // make an alternate allele
                 /*
@@ -781,7 +781,7 @@ int main (int argc, char** argv) {
             }
 
             // indel case
-            if (genrand_real1() > pow(1 - indel_mutation_rate, log(copies) * 2)) {
+            if (genrand_real1() > pow(1 - indel_mutation_rate, log(max(copies, 2)) * 2)) {
                 // how many bp?
                 if (uniform_indel_distribution) {
                     len = (int) floor(genrand_real1() * indel_max);
@@ -843,6 +843,16 @@ int main (int argc, char** argv) {
                         }
                         remaining_copies -= allele_freq;
                     }
+                }
+
+                if (present_alleles.empty()) {
+                    for (int i = 0; i < copies; ++i) {
+                        if (!dry_run) {
+                            sequences.at(i)->write(ref);
+                        }
+                    }
+                    pos += ref.size();
+                    continue;
                 }
 
                 reverse(present_alleles.begin(), present_alleles.end());
