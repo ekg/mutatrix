@@ -57,6 +57,11 @@ There is no concept of haplotype block or linkage in mutatrix.  Each allele and
 site is effectively independent from other sites.
 
 
+Dependency on vcflib
+
+You'll need to be able to build vcflib. This might involve installing libtabixpp-dev.
+
+
 author: Erik Garrison <erik.garrison@bc.edu>
 license: MIT (free)
 

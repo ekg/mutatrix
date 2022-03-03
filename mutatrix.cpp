@@ -548,7 +548,7 @@ int main (int argc, char** argv) {
 
     string bases = "ATGC";
 
-    vcf::VariantCallFile vcfFile;
+    vcflib::VariantCallFile vcfFile;
 
     // write the VCF header
     stringstream headerss;
@@ -893,7 +893,7 @@ int main (int argc, char** argv) {
                 // shuffle the alleles around the population
                 random_shuffle(population_alleles.begin(), population_alleles.end());
 
-                vcf::Variant var(vcfFile);
+                vcflib::Variant var(vcfFile);
                 var.sequenceName = seqname;
                 var.position = pos + 1;
                 var.quality = 99;
